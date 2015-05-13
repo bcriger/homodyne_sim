@@ -60,7 +60,7 @@ class Simulation(object):
                 #drift term
                 alpha_dot[k, i] = -1j * delta[k] * temp_mat[k, i]
                 #qubit coupling term
-                alpha_dot[k, i] += -1j * (sum([bt_sn(i, l) * chi[k, l]
+                alpha_dot[k, i] += -1j * (sum([ut.bt_sn(i, l, nq) * chi[k, l]
                                                for l in range(nq)])
                                                 * temp_mat[k, i])
                 #driving term
@@ -115,14 +115,14 @@ class Simulation(object):
             self.set_amplitudes()
         alpha = self.amplitudes
              
-        self.lindbladian = np.zeros((nt, ns, ns), ut.cpx)
+        self.coupling_lindbladian = np.zeros((nt, ns, ns), ut.cpx)
         
         for tdx in range(nt):
             for i, j in product(range(ns), repeat=2):
                 for k, l in product(range(nm), range(nq)):
                     self.coupling_lindbladian[tdx, i, j] += -1j * chi[k, l] * \
                         np.conj(alpha[tdx, k, j]) * alpha[tdx, k, i] * \
-                        (bt_sn(i, l) - bt_sn(j, l))
+                        (ut.bt_sn(i, l, nq) - ut.bt_sn(j, l, nq))
         pass
 
     def set_measurement(self):
@@ -167,8 +167,8 @@ class Simulation(object):
         final_results = []
         step_results = []
         dt = self.times[1] - self.times[0]
-        drift_h = self.app.drift_hamiltonian
-        jump_ops = self.app.jump_ops
+        drift_h = self.apparatus.drift_hamiltonian
+        jump_ops = self.apparatus.jump_ops
         for run in range(n_runs):
             rho = np.copy(rho_vec_init)
             dWs = np.sqrt(dt) * np.random.randn(nt)

@@ -62,7 +62,7 @@ def photocurrent(t, rho, dW, sim):
     """
     tdx = np.argmin(np.abs(sim.times - t))
     c = sim.measurement[tdx, :, :]
-    return np.trace(np.dot(c + c.conj().transpose(), rho) + dW
+    return np.trace(np.dot(c + c.conj().transpose(), rho)) + dW
 
 def concurrence(rho):
     r"""
@@ -85,7 +85,7 @@ def all_zs(nq):
     """
     returns a matrix of Z^(\otimes nq) for some nq
     """
-    return reduce(np.kron [sigma_z for _ in range(nq)])
+    return reduce(np.kron, [sigma_z for _ in range(nq)])
 
 int_cat = lambda i, j, nq: (i << nq) + j
 
@@ -132,11 +132,12 @@ def vec_tr(vec):
     sqrt_sz = int(np.sqrt(len(vec)))
     return sum([vec[(sqrt_sz + 1) * j] for j in range(sqrt_sz)])
 
-def bt_sn(i, j):
+def bt_sn(i, l, nq):
     """
-    (-1)^(i_j)
+    (-1)^(i_l)
     """
-    return -1 if (i & (1 << j)) else 1
+    bits = bin(i)[2:].zfill(nq)
+    return -1 if int(bits[l]) else 1
 
 def m_c_rho(c_diag, rho_vec):
     temp_vec = np.multiply(c_diag, rho_vec)
@@ -205,8 +206,6 @@ def z_ham(omega, q, nq):
     a = reduce(np.kron, [sigma_z if k == q else id_2
                          for k in range(nq)])
     return omega * com_mat(a)
-
-
 
 #stackoverflow.com/questions/23228244/
 def interquartile_range(x):
