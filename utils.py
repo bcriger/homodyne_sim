@@ -1,6 +1,7 @@
 import pylab as pl 
 import numpy as np 
 import itertools as it
+from scipy.linalg import sqrtm
 
 cpx = np.complex128
 
@@ -39,19 +40,20 @@ def arctan_input(t, e_ss, sigma, t_on, t_off):
                             np.arctan(sigma * (t - t_off)))
 
 
-def overlap(rho_vec, test_vec):
+def overlap(a_mat, b_mat):
     """
-    Determines the overlap (tr(rho * sigma)) between two 
-    column-stacked density operators.
+    Determines the H-S inner product (tr(A^+ B)) between two 
+    matrices.
     """
-    return np.dot(rho_vec.conj().transpose(), test_vec)
+    return np.dot(a_mat.conj().transpose(), b_mat)
 
-def fidelity(rho_vec, test_vec):
+def fidelity(rho, sigma):
     """
-    Determines the state fidelity between two column-stacked density 
+    Determines the state fidelity between two density 
     operators.
     """
-    return np.sqrt(overlap(rho_vec, test_vec))
+    sqrt_rho = sqrtm(rho)
+    return np.sqrt(reduce(np.dot, [sqrt_rho, sigma, sqrt_rho]))
 
 def photocurrent(t, rho, dW, sim):
     """
@@ -59,43 +61,38 @@ def photocurrent(t, rho, dW, sim):
     translating the time t into an array index (forgive me).
     """
     tdx = np.argmin(np.abs(sim.times - t))
-    c = sim.measurement[:,tdx]
-    return overlap(c, rho) + dW
+    c = sim.measurement[tdx, :, :]
+    return np.trace(np.dot(c + c.conj().transpose(), rho) + dW
 
-def concurrence(rho_vec):
+def concurrence(rho):
     r"""
     wikipedia.org/wiki/Concurrence_%28quantum_computing%29#Definition
     """
-    if rho_vec.shape != (16,):
+    if rho.shape != (4,4):
         raise ValueError("Concurrence only works for two-qubit states")
-    rho_mat = vec2mat(rho_vec)
-    test_mat = reduce(np.dot, [rho_mat, YY, rho_mat.conj(), YY])
+    test_mat = reduce(np.dot, [rho, YY, rho.conj(), YY])
     lmbds = sorted(map(np.sqrt, np.eigs(test_mat)[0]))
     return lmbds[0] - lmbds[1] - lmbds[2] - lmbds[3]
 
-
 def check_cb(t, rho, dW):
     hm = herm_dev(rho)
-    tr = vec_tr(rho)
-    pr = vec_purity(rho)
+    tr = np.trace(rho)
+    pr = np.trace(np.dot(rho, rho)) 
     min_e, max_e = min_max_eig(rho)
     return hm, tr, pr, min_e, max_e
 
 def all_zs(nq):
     """
-    returns a column-stacked matrix of Z^(\otimes nq) for some nq
+    returns a matrix of Z^(\otimes nq) for some nq
     """
-    biterator = it.product(range(2), repeat=nq)
-    output = np.zeros(4**nq)
-    count = 0
-    for bits in biterator:
-        output[(2**nq + 1) * count] = np.product([(-1)**b for b in bits])
-        count += 1
-    return output
+    return reduce(np.kron [sigma_z for _ in range(nq)])
 
 int_cat = lambda i, j, nq: (i << nq) + j
 
-def herm_dev(vec):
+def herm_dev(mat):
+    return np.amax(np.abs( mat - mat.conj().transpose() ))
+
+def herm_dev_vec(vec):
     ns = int(np.sqrt(len(vec)))
     nq = int(np.log2(ns))
     max_abs_dev = 0.
@@ -108,12 +105,20 @@ def herm_dev(vec):
     
     return max_abs_dev
 
-def min_max_eig(vec):
+def min_max_eig_vec(vec):
     """
     Assuming that vec is a column-stacked matrix, returns the min and 
     max eigenvalues.
     """
     mat = vec2mat(vec)
+    eigs = np.linalg.eig(mat)[0]
+    return min(eigs), max(eigs)
+
+def min_max_eig(mat):
+    """
+    Assuming that mat is a matrix, returns the min and 
+    max eigenvalues.
+    """
     eigs = np.linalg.eig(mat)[0]
     return min(eigs), max(eigs)
 

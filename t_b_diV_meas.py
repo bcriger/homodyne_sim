@@ -38,9 +38,7 @@ if __name__ == '__main__':
 
     plus_state = np.array([1., 0., 0., 1., 0., 1., 1., 0.])/2.
     minus_state = np.array([0., 1., 1., 0., 1., 0., 0., 1.])/2.
-    plus_vec = state2vec(plus_state)
-    minus_vec = state2vec(minus_state)
-    rho_init = 0.125 * np.ones((64,), np.complex128)
+    rho_init = 0.125 * np.ones((8,8), np.complex128)
     
     def end_cb(rho):
         zzz = overlap(zzz_vec, rho)
