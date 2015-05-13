@@ -2,10 +2,18 @@ import pylab as pl
 import numpy as np 
 import itertools as it
 
+cpx = np.complex128
+
+id_2 = np.eye(2, dtype=cpx)
+
+sigma_m = np.array([[0., 1.], [
+                     0., 0.]], dtype=cpx)
+
+
 YY = np.array([ [ 0., 0., 0., -1.],
                 [ 0., 0., 1.,  0.],
                 [ 0., 1., 0.,  0.],
-                [-1., 0., 0.,  0.]], dtype=np.complex128)
+                [-1., 0., 0.,  0.]], dtype=cpx)
 
 def vec2mat(vec):
     sqrt_len = int(np.sqrt(len(vec)))
@@ -17,6 +25,9 @@ def mat2vec(mat):
 
 def state2vec(lil_vec):
     return mat2vec(np.outer(lil_vec.conj(), lil_vec))
+
+def single_op(mat, q, nq):
+    return reduce([mat if k==q else id_2 for k in range(nq)])
 
 cnst_pulse = lambda t: 1.
 
@@ -163,9 +174,6 @@ def gamma_1_lind(gamma_1, q, nq):
     Lindbladian contribution from amplitude damping on the qth qubit of
     nq total.
     """
-    id_2 = np.eye(2, dtype=np.complex128)
-    sigma_m = np.array([[0., 1.], [
-                         0., 0.]], dtype=np.complex128)
     a = reduce(np.kron, [sigma_m if k == q else id_2
                          for k in range(nq)])
     return gamma_1 * diss_mat(a)
@@ -175,9 +183,9 @@ def gamma_2_lind(gamma_2, q, nq):
     Lindbladian contribution from dephasing on the qth qubit of nq 
     total.
     """
-    id_2 = np.eye(2, dtype=np.complex128)
+    id_2 = np.eye(2, dtype=cpx)
     sigma_z = np.array([[1.,  0.], [
-                         0., -1.]], dtype=np.complex128)
+                         0., -1.]], dtype=cpx)
     a = reduce(np.kron, [sigma_z if k == q else id_2
                          for k in range(nq)])
     return gamma_2 * diss_mat(a)
@@ -187,9 +195,9 @@ def z_ham(omega, q, nq):
     Lindbladian contribution from z-axis rotation on the qth qubit of
     nq total.
     """
-    id_2 = np.eye(2, dtype=np.complex128)
+    id_2 = np.eye(2, dtype=cpx)
     sigma_z = np.array([[1.,  0.], [
-                         0., -1.]], dtype=np.complex128)
+                         0., -1.]], dtype=cpx)
     a = reduce(np.kron, [sigma_z if k == q else id_2
                          for k in range(nq)])
     return omega * com_mat(a)
