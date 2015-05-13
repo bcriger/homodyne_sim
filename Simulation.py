@@ -1,6 +1,4 @@
 import numpy as np 
-from numpy.random import randn
-from sde_solve import platen_15_step
 from Apparatus import Apparatus
 from types import FunctionType
 from odeintw import odeintw
@@ -10,12 +8,13 @@ import seaborn as sb
 import cPickle as pkl
 from os import getcwd
 import ipy_progressbar as pb
-from utils import *
+import utils as ut
 
 class Simulation(object):
     """
     Handles homodyne measurement simulations. Stores the time-dependent
-    parameters (times, pulse function, )
+    parameters (times, pulse function, cavity coherent state 
+    amplitudes, coupling Lindbladian, measurement operator)
     """
     def __init__(self, apparatus, times, pulse_fn):
         
@@ -74,7 +73,7 @@ class Simulation(object):
             
             return alpha_dot.reshape(alpha.shape)
 
-        alpha_0 = np.zeros((nm * ns,), np.complex128)
+        alpha_0 = np.zeros((nm * ns,), ut.cpx)
         self.amplitudes = odeintw(_d_alpha_dt, alpha_0, self.times).reshape((nt, nm, ns))
     
     def butterfly_plot(self, *args, **kwargs):
@@ -91,7 +90,7 @@ class Simulation(object):
         nq, nm, ns, nt = self.sizes()
         kappa = self.apparatus.kappa
 
-        alpha_outs = np.zeros((nt, ns), np.complex128)
+        alpha_outs = np.zeros((nt, ns), ut.cpx)
         for tdx, k, i in product(range(nt), range(nm), range(ns)):
             alpha_outs[tdx, i] += np.sqrt(kappa[k]) * alpha[tdx, k, i]
 
@@ -102,76 +101,35 @@ class Simulation(object):
         sb.plt.show()
         pass
     
-    def set_lindbladian(self, addl_ti=None, addl_td=None):
+    #TODO Refactor to use properties
+    def set_coupling_lindbladian(self):
         """
-        Computes a 2+1 dimensional array of supermatrices, 
-        incorporating:
-         + The lindbladian resulting from the parameters of the 
-           apparatus (drift hamiltonian, T_1, T_2, Purcell)
-         + The coupling Lindbladian resulting from interaction with the
-           cavity
-         + An optional additional time-independent lindbladian
-         + An optional additional time-dependent lindbladian
+        Computes a (1+2)-dimensional array, each slice across the last
+        two dimensions containing the values of the lindbladian to be
+        multiplied elementwise onto rho.
         """
         nq, nm, ns, nt = self.sizes()
-        chi, omega = self.apparatus.chi, self.apparatus.omega
-        g_1, g_p = self.apparatus.gamma_1, self.apparatus.gamma_phi
-        purcell = self.apparatus.purcell
-
+        chi = self.apparatus.chi
+        
         if self.amplitudes is None:
             self.set_amplitudes()
         alpha = self.amplitudes
              
-        self.lindbladian = np.zeros((ns**2, ns**2, nt), np.complex128)
+        self.lindbladian = np.zeros((nt, ns, ns), ut.cpx)
         
-        drift_lind = np.zeros((ns**2, ns**2), np.complex128)
-        #Drift Hamiltonian
-        drift_lind += sum([z_ham(omega[q], q, nq)
-                                    for q in range(nq)])
-        #T_1
-        drift_lind += sum([gamma_1_lind(g_1[q], q, nq)
-                                    for q in range(nq)])
-        #Purcell
-        drift_lind += sum([gamma_1_lind(purcell[q], q, nq)
-                                    for q in range(nq)])
-        #T_2
-        drift_lind += sum([gamma_2_lind(g_p[q], q, nq)
-                                    for q in range(nq)])
-        
-        if addl_ti:
-            drift_lind += addl_ti
-
         for tdx in range(nt):
-            self.lindbladian[:, :, tdx] = drift_lind
-            if addl_td:
-                self.lindbladian[:, :, tdx] += addl_td[:, :, tdx]
-            cpl_l = np.zeros((ns, ns), dtype=np.complex128)
             for i, j in product(range(ns), repeat=2):
-                '''
-                ij = int_cat(i, j, nq)
                 for k, l in product(range(nm), range(nq)):
-                    self.lindbladian[ij, ij, tdx] += -1j * chi[k, l] * \
-                        np.conj(alpha[tdx, k, i]) * alpha[tdx, k, j] * \
-                        (bt_sn(j, l) - bt_sn(i, l))
-                '''
-                for k, l in product(range(nm), range(nq)):
-                    cpl_l[i, j] += -1j * chi[k, l] * \
+                    self.coupling_lindbladian[tdx, i, j] += -1j * chi[k, l] * \
                         np.conj(alpha[tdx, k, j]) * alpha[tdx, k, i] * \
                         (bt_sn(i, l) - bt_sn(j, l))
-            
-            for i, j in product(range(ns), repeat=2):
-                ij = int_cat(i, j, nq)
-                self.lindbladian[ij, ij, tdx] += cpl_l[j, i]
         pass
 
     def set_measurement(self):
         """
-        Prepares diag( A \otimes \id + \id \otimes A.conj() ), the 
-        relevant array in determining the measurement contribution to 
-        d rho. Storing this array means not having to perform Kronecker
-        products in the main loop.
+        Prepares a (1+2)-dimensional array 
         """
-        nq, nm, ns, nt = self.sizes()
+        _, nm, ns, nt = self.sizes()
 
         if self.amplitudes is None:
             self.set_amplitudes()
@@ -180,24 +138,14 @@ class Simulation(object):
         eta, phi = self.apparatus.eta, self.apparatus.phi
         kappa = self.apparatus.kappa
 
-        self.measurement = np.zeros((ns, ns, nt), np.complex128)
-        '''
-        for i, j in product(range(ns), range(ns)):
-            ij = int_cat(i, j, nq)
-            for tdx in range(nt):
-                elem = sum([np.sqrt(kappa[k]) * 
-                            (np.exp(-1j * phi) * alpha[tdx, k, i] + 
-                            np.exp(1j * phi) * alpha[tdx, k, j].conj())
-                             for k in range(nm)])
-                self.measurement[ij, tdx] += elem
-        '''
-        #form matrix and take diagonal like an animal
+        self.measurement = np.zeros((nt, ns, ns), ut.cpx)
         for tdx in range(nt):
-            c = np.zeros((ns, ns), dtype=np.complex128)
+            c = np.zeros((ns, ns), dtype=ut.cpx)
             for j in range(ns):
-                c[j, j] = sum([np.sqrt(kappa[k]) * alpha[tdx, k, j]
+                self.measurement[tdx, j, j] = sum([
+                    np.sqrt(kappa[k]) * alpha[tdx, k, j]
                             for k in range(nm)])
-            self.measurement[:, :, tdx] = c
+
         self.measurement *= np.sqrt(eta) * np.exp(-1j * phi)
         pass
 
@@ -207,8 +155,8 @@ class Simulation(object):
         Uses the saved coherent state amplitudes to formulate a 
         Lindbladian and measurement operator determining the SME.
         """
-        if self.lindbladian is None:
-            self.set_lindbladian()
+        if self.coupling_lindbladian is None:
+            self.set_coupling_lindbladian()
         if self.measurement is None:
             self.set_measurement()
         pass
@@ -219,24 +167,29 @@ class Simulation(object):
         final_results = []
         step_results = []
         dt = self.times[1] - self.times[0]
-        
-        if pbar:
-            #run_iter = pb.ProgressBar(range(run_iter), widgets = [pb.AdaptiveETA()])
-            run_iter = range(n_runs)
-        else:
-            run_iter = range(n_runs)
-
-        for run in run_iter:
+        drift_h = self.app.drift_hamiltonian
+        jump_ops = self.app.jump_ops
+        for run in range(n_runs):
             rho = np.copy(rho_vec_init)
-            dWs = np.sqrt(dt) * randn(nt)
+            dWs = np.sqrt(dt) * np.random.randn(nt)
             step_result = [step_fn(self.times[0], rho, dWs[0])]
             
             for tdx in range(1, nt):
                 #euler-maruyama step
+                #TODO Break up / refactor
                 d_rho = np.zeros(rho.shape, rho.dtype)
-                d_rho = dt * np.dot(self.lindbladian[:, :, tdx], rho)
-                # d_rho += dWs[tdx] * m_c_rho(self.measurement[:, tdx], rho)
-                d_rho += dWs[tdx] * m_c_rho_op(self.measurement[:, :, tdx], rho)
+                d_rho += -1j * (np.dot(drift_h, rho) - np.dot(rho, drift_h)) * dt
+                cpl_l = self.coupling_lindbladian[tdx, :, :]
+                meas = self.measurement[tdx, :, :]
+                meas_d = meas.conj().transpose()
+                for op in jump_ops:
+                    op_d = op.conj().transpose()
+                    d_rho += dt * (np.dot(np.dot(op, rho), op_d)
+                        - 0.5 * (np.dot(np.dot(op_d, op), rho) + 
+                                    np.dot(rho, np.dot(op_d, op)) ))
+                d_rho = dt * np.multiply(cpl_l, rho)
+                d_rho += dWs[tdx] * ( np.dot(meas, rho) + np.dot(rho, meas_d) - 
+                np.trace(np.dot(meas + meas_d, rho)) * rho )
                 rho += d_rho
                 
                 #callback
