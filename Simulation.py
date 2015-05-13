@@ -14,7 +14,8 @@ from utils import *
 
 class Simulation(object):
     """
-    Handles homodyne measurement simulations.
+    Handles homodyne measurement simulations. Stores the time-dependent
+    parameters (times, pulse function, )
     """
     def __init__(self, apparatus, times, pulse_fn):
         
@@ -31,12 +32,12 @@ class Simulation(object):
         self.pulse_fn = pulse_fn
 
         self.amplitudes   = None
-        self.lindbladian  = None
+        self.coupling_lindbladian = None
         self.measurement  = None
         
     def sizes(self):
         nq, nm = self.apparatus.nq, self.apparatus.nm
-        ns = 2 ** nq
+        ns = self.apparatus.ns
         nt = len(self.times)
         return nq, nm, ns, nt
 

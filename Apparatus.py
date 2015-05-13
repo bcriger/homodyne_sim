@@ -19,11 +19,11 @@ class Apparatus(object):
      + phi: homodyne phase  
     """
 
-    def __init__(self, _omega, _delta, _chi, _kappa, _gamma_1, 
-                _gamma_phi, _purcell, eta, phi):
-        arg_dict = {'delta': _delta, 'chi': _chi, 'kappa': _kappa,
-                    'omega': _omega, 'gamma_1': _gamma_1, 
-                    'gamma_phi': _gamma_phi, 'purcell': _purcell}
+    def __init__(self, omega, delta, chi, kappa, gamma_1, 
+                gamma_phi, purcell, eta, phi):
+        arg_dict = {'delta': delta, 'chi': chi, 'kappa': kappa,
+                    'omega': omega, 'gamma_1': gamma_1, 
+                    'gamma_phi': gamma_phi, 'purcell': purcell}
 
         for key in arg_dict.keys():
             try:
@@ -40,7 +40,7 @@ class Apparatus(object):
         
         #Take omega to define the number of qubits
         self.nq = arg_dict['omega'].shape[0]
-        self.ns = 2**nq #FIXME USE PROPERTY
+        self.ns = 2**self.nq #FIXME USE PROPERTY
         
         #----Test shapes of other arguments to ensure consistency----#
         qubit_keys = ['gamma_1', 'gamma_phi']
@@ -149,7 +149,7 @@ def _drift_h(app):
     """
     hamiltonian = np.zeros((app.ns, app.ns), ut.cpx)
     for l in range(app.nq):
-        lamb_shift = sum([app.chi[k, l] for k in range(app.nm)]
+        lamb_shift = sum([app.chi[k, l] for k in range(app.nm)])
         sigma_z_l = ut.single_op(ut.sigma_z, l, app.nq)
         hamiltonian += 0.5 * (app.omega[l] + lamb_shift) * sigma_z_l
     return hamiltonian 
@@ -158,8 +158,8 @@ def _jump_op_lst(app):
     """
     """
     return tuple(it.chain.from_iterable([_qubit_damping_ops(app),
-                                        _qubit_dephasing_ops(app,
-                                        _purcell_ops(app))]))
+                                        _qubit_dephasing_ops(app),
+                                        _purcell_ops(app)]))
 def _qubit_damping_ops(app):
     """
     returns a tuple of the time-independent qubit amplitude damping
@@ -190,7 +190,7 @@ def _purcell_ops(app):
     for k in range(app.nm):
         op = np.zeros((app.ns, app.ns), dtype=ut.cpx)
         for l in range(app.nq):
-            sigma_m_l = ut.single_op(ut.sigma_m, l, nq)
+            sigma_m_l = ut.single_op(ut.sigma_m, l, app.nq)
             op += app.purcell[k, l] * sigma_m_l
         op *= np.sqrt(app.kappa[k])
         op_lst.append(op)

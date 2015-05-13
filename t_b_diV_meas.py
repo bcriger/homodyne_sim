@@ -15,7 +15,7 @@ if __name__ == '__main__':
     t_b_diV_dict = {'delta': [np.sqrt(3.), -np.sqrt(3.)], 
                 'chi': chi * np.ones((2,3)), 'kappa': [2., 2.],
                 'gamma_1': [0., 0., 0.], 'gamma_phi': [0., 0., 0.],
-                'purcell': [0., 0., 0.], 'omega': [0., 0., 0.],
+                'purcell': np.zeros((2,3)), 'omega': [0., 0., 0.],
                 'eta': eta, 'phi': 0.0}
 
     t_b_diV_app = ap.Apparatus(**t_b_diV_dict)

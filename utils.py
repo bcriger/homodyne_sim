@@ -9,6 +9,8 @@ id_2 = np.eye(2, dtype=cpx)
 sigma_m = np.array([[0., 1.], [
                      0., 0.]], dtype=cpx)
 
+sigma_z = np.array([[1.,  0.], [
+                     0., -1.]], dtype=cpx)
 
 YY = np.array([ [ 0., 0., 0., -1.],
                 [ 0., 0., 1.,  0.],
@@ -27,7 +29,7 @@ def state2vec(lil_vec):
     return mat2vec(np.outer(lil_vec.conj(), lil_vec))
 
 def single_op(mat, q, nq):
-    return reduce([mat if k==q else id_2 for k in range(nq)])
+    return reduce(np.kron, [mat if l==q else id_2 for l in range(nq)])
 
 cnst_pulse = lambda t: 1.
 
@@ -183,9 +185,6 @@ def gamma_2_lind(gamma_2, q, nq):
     Lindbladian contribution from dephasing on the qth qubit of nq 
     total.
     """
-    id_2 = np.eye(2, dtype=cpx)
-    sigma_z = np.array([[1.,  0.], [
-                         0., -1.]], dtype=cpx)
     a = reduce(np.kron, [sigma_z if k == q else id_2
                          for k in range(nq)])
     return gamma_2 * diss_mat(a)
