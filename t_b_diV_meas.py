@@ -14,22 +14,23 @@ if __name__ == '__main__':
     #-----Basic Objects-----#
     t_b_diV_dict = {'delta': [np.sqrt(3.), -np.sqrt(3.)], 
                 'chi': chi * np.ones((2,3)), 'kappa': [2., 2.],
-                'gamma_1': [0., 0., 0.], 'gamma_phi': [0., 0., 0.],
+                'gamma_1': [0.01, 0.01, 0.01], 'gamma_phi': [0.01, 0.01, 0.01],
                 'purcell': np.zeros((2,3)), 'omega': [0., 0., 0.],
                 'eta': eta, 'phi': 0.0}
 
     t_b_diV_app = ap.Apparatus(**t_b_diV_dict)
 
     #-----Set Pulse-----#
-    tau = 20./(eta * chi)
-    t_on = 4. 
-    t_off = tau - 4. # check butterfly plot for convergence.
-    sigma = 20.
+    tau = 30. / (eta * chi)
+    t_on = 6. 
+    t_off = tau - 6. # check butterfly plot for convergence.
+    sigma = 30.
     e_ss = 2. * np.sqrt(1. / (eta * tau))
-    pulse = lambda t: arctan_input(t, e_ss, sigma, t_on, t_off)    
-    
+    # pulse = lambda t: arctan_updown(t, e_ss, sigma, t_on, t_off)    
+    # pulse = lambda t: arctan_up(t, e_ss, sigma, t_on, t_off)    
+    pulse = lambda t: cnst_pulse(t, e_ss)
     #-----Simulation Prep-----#
-    t_b_diV_sim = sm.Simulation(t_b_diV_app, np.linspace(0., tau, 10000), pulse)
+    t_b_diV_sim = sm.Simulation(t_b_diV_app, np.linspace(0., tau, 1000), pulse)
     t_b_diV_sim.set_operators()
 
     #-----Callback Functions-----#
@@ -51,4 +52,4 @@ if __name__ == '__main__':
     
 
     #cProfile.run("t_b_diV_sim.run(rho_init, step_cb, end_cb, 10, 'test.pkl')")
-    t_b_diV_sim.run(rho_init, check_cb, end_cb, 100, 'test_100.pkl')
+    t_b_diV_sim.run(rho_init, check_cb, end_cb, 100, 'test.pkl')

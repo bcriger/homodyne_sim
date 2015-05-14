@@ -32,13 +32,16 @@ def state2vec(lil_vec):
 def single_op(mat, q, nq):
     return reduce(np.kron, [mat if l==q else id_2 for l in range(nq)])
 
-cnst_pulse = lambda t: 1.
+cnst_pulse = lambda t, cnst: cnst
 
-def arctan_input(t, e_ss, sigma, t_on, t_off):
+def arctan_updown(t, e_ss, sigma, t_on, t_off):
     
     return e_ss / np.pi * (np.arctan(sigma * (t - t_on)) - 
                             np.arctan(sigma * (t - t_off)))
 
+def arctan_up(t, e_ss, sigma, t_on, t_off):
+    
+    return e_ss / np.pi * (np.arctan(sigma * (t - t_on)) + np.pi/2.)
 
 def overlap(a_mat, b_mat):
     """

@@ -73,7 +73,7 @@ class Simulation(object):
             
             return alpha_dot.reshape(alpha.shape)
 
-        alpha_0 = np.zeros((nm * ns,), ut.cpx)
+        alpha_0 = np.zeros((nm * ns,), dtype=ut.cpx)
         self.amplitudes = odeintw(_d_alpha_dt, alpha_0, self.times).reshape((nt, nm, ns))
     
     def butterfly_plot(self, *args, **kwargs):
@@ -166,31 +166,13 @@ class Simulation(object):
         nq, nm, ns, nt = self.sizes()
         final_results = []
         step_results = []
-        dt = self.times[1] - self.times[0]
-        drift_h = self.apparatus.drift_hamiltonian
-        jump_ops = self.apparatus.jump_ops
         for run in range(n_runs):
             rho = np.copy(rho_vec_init)
-            dWs = np.sqrt(dt) * np.random.randn(nt)
+            dWs = np.sqrt(self.times[1] - self.times[0]) * np.random.randn(nt)
             step_result = [step_fn(self.times[0], rho, dWs[0])]
             
             for tdx in range(1, nt):
-                #euler-maruyama step
-                #TODO Break up / refactor
-                d_rho = np.zeros(rho.shape, rho.dtype)
-                d_rho += -1j * (np.dot(drift_h, rho) - np.dot(rho, drift_h)) * dt
-                cpl_l = self.coupling_lindbladian[tdx, :, :]
-                meas = self.measurement[tdx, :, :]
-                meas_d = meas.conj().transpose()
-                for op in jump_ops:
-                    op_d = op.conj().transpose()
-                    d_rho += dt * (np.dot(np.dot(op, rho), op_d)
-                        - 0.5 * (np.dot(np.dot(op_d, op), rho) + 
-                                    np.dot(rho, np.dot(op_d, op)) ))
-                d_rho = dt * np.multiply(cpl_l, rho)
-                d_rho += dWs[tdx] * ( np.dot(meas, rho) + np.dot(rho, meas_d) - 
-                np.trace(np.dot(meas + meas_d, rho)) * rho )
-                rho += d_rho
+                rho += _e_m_d_rho(self, tdx, rho, dWs[tdx])
                 
                 #callback
                 if step_fn is not None:
@@ -210,3 +192,31 @@ class Simulation(object):
                         'step_results': step_results}
             with open('/'.join([getcwd(),flnm]), 'w') as phil:
                 pkl.dump(sim_dict, phil)
+
+def _e_m_d_rho(sim, tdx, rho, dW, copy=True):
+    """
+    Computes the Forward Explicit Euler-Maruyama step in rho using the
+    arrays stored in the Simulation object.
+    """
+    
+    dt = sim.times[1] - sim.times[0]
+    drift_h = sim.apparatus.drift_hamiltonian
+    jump_ops = sim.apparatus.jump_ops
+    
+    rho_c = rho.copy() if copy else rho
+    
+    d_rho_c = np.zeros(rho_c.shape, rho_c.dtype)
+    d_rho_c += dt * (-1j) * (np.dot(drift_h, rho_c) - np.dot(rho_c, drift_h))
+    cpl_l = sim.coupling_lindbladian[tdx, :, :]
+    meas = sim.measurement[tdx, :, :]
+    meas_d = meas.conj().transpose()
+    for op in jump_ops:
+        op_d = op.conj().transpose()
+        d_rho_c += dt * (np.dot(np.dot(op, rho_c), op_d)
+            - 0.5 * (np.dot(np.dot(op_d, op), rho_c) + 
+                        np.dot(rho_c, np.dot(op_d, op)) ))
+    d_rho_c += dt * np.multiply(cpl_l, rho_c)
+    d_rho_c += dW * ( np.dot(meas, rho_c) + np.dot(rho_c, meas_d) - 
+    np.trace(np.dot(meas + meas_d, rho_c)) * rho_c )
+    return d_rho_c
+
