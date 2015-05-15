@@ -220,14 +220,9 @@ def _e_m_d_rho(sim, tdx, rho, dW, copy=True):
     np.trace(np.dot(meas + meas_d, rho_c)) * rho_c )
     return d_rho_c
 
-def _p_15_d_rho(sim, tdx, rho, dW, copy=True):
-    #platen_15_step(t, rho, det_f, stoc_f, dt, dW)
-    t = sim.times[tdx]
+def _rk_1_d_rho(sim, tdx, rho, dW, copy=True):
     dt = sim.times[1] - sim.times[0]
     rho_c = rho.copy() if copy else rho
     
-    def det_f():
-         pass 
-    
-    def stoc_f():
-        pass
+
+    #Matrix inversion in the loop (pre-calculate later)
