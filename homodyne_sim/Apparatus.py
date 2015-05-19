@@ -2,6 +2,10 @@ import numpy as np
 import itertools as it
 import utils as ut
 
+__all__ = ['Apparatus', '_drift_h', '_jump_op_lst', 
+            '_qubit_damping_ops', '_qubit_dephasing_ops', 
+            '_purcell_ops']
+
 class Apparatus(object):
 
     """

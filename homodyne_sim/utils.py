@@ -3,6 +3,16 @@ import numpy as np
 import itertools as it
 from scipy.linalg import sqrtm
 
+__all__=['id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat', 'mat2vec',
+        'state2vec', 'single_op', 'arctan_updown', 'arctan_up', 
+        'overlap', 'op_trace', 'op_herm_dev', 'op_purity', 'fidelity',
+        'photocurrent', 'concurrence', 'check_cb', 'all_zs', 
+        'herm_dev', 'herm_dev_vec', 'min_max_eig', 'vec_purity', 
+        'vec_tr', 'bt_sn', 'm_c_rho', 'm_c_rho_op', 'com_mat', 
+        'diss_mat', 'lin_meas_mat', 'gamma_1_lind', 'gamma_2_lind', 
+        'z_ham', 'interquartile_range', 'f_d_bin_width', 'fd_bins', 
+        'colour_hist']
+
 #cpx = np.complex64
 cpx = np.complex128
 # cpx = np.complex256 #UNSUPPORTED IN LINALG
