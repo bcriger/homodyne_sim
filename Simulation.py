@@ -1,4 +1,5 @@
 import numpy as np 
+from scipy.linalg import inv
 from Apparatus import Apparatus
 from types import FunctionType
 from odeintw import odeintw
@@ -34,6 +35,8 @@ class Simulation(object):
         self.amplitudes   = None
         self.coupling_lindbladian = None
         self.measurement  = None
+        self.lindblad_spr = None
+        self.lin_meas_spr = None
         
     def sizes(self):
         nq, nm = self.apparatus.nq, self.apparatus.nm
@@ -128,7 +131,8 @@ class Simulation(object):
 
     def set_measurement(self):
         """
-        Prepares a (1+2)-dimensional array 
+        Prepares a (1+2)-dimensional array which stores explicit 
+        measurement operators.
         """
         _, nm, ns, nt = self.sizes()
 
@@ -150,6 +154,51 @@ class Simulation(object):
         self.measurement *= np.sqrt(eta) * np.exp(-1j * phi)
         pass
 
+    def set_lindblad_spr(self):
+        self.set_coupling_lindbladian()
+
+        _, _, ns, nt = self.sizes()
+        self.lindblad_spr = np.zeros((nt, ns**2, ns**2), dtype=ut.cpx)
+
+        drift_h = self.apparatus.drift_hamiltonian
+        id_mat = np.eye(ns, dtype=ut.cpx)
+        big_drift = np.zeros((ns**2, ns**2), dtype=ut.cpx)
+        #'''
+        big_drift += -1j * (np.kron(id_mat, drift_h) - 
+                            np.kron(drift_h.transpose(), id_mat))
+        #'''
+        #'''
+        for op in self.apparatus.jump_ops:
+            big_drift += np.kron(op.conj(), op)
+            big_drift -= 0.5 * np.kron(id_mat, np.dot(op.conj().transpose(), op))
+            big_drift -= 0.5 * np.kron(np.dot(op.transpose(), op.conj()), id_mat)
+        #'''
+        for tdx, elem in enumerate(self.coupling_lindbladian):
+            self.lindblad_spr[tdx, :, :] = big_drift.copy()
+            #'''
+            for ddx, value in enumerate(ut.mat2vec(elem).flatten()):
+                self.lindblad_spr[tdx, ddx, ddx] += value  
+            #'''
+        pass
+
+    def set_lin_meas_spr(self):
+        """
+        Calculates the linear measurement superoperator
+        (I kron c + c^* kron I) corresponding to the linear diffusion 
+        term (c rho + rho c^+). In order to apply this, you'll have to 
+        calculate the operator trace of the multiplication result, then
+        multiply by rho and subtract.
+        """
+        self.set_measurement()
+        _, _, ns, nt = self.sizes()
+        self.lin_meas_spr = np.zeros((nt, ns**2, ns**2), dtype=ut.cpx)
+        #'''
+        id_mat = np.eye(ns, dtype=ut.cpx)
+        
+        for tdx in range(nt):
+            c = self.measurement[tdx, :, :]
+            self.lin_meas_spr[tdx, :, :] = np.kron(id_mat, c) + np.kron(c.conj(), id_mat)
+        #'''
 
     def set_operators(self):
         """
@@ -162,18 +211,27 @@ class Simulation(object):
             self.set_measurement()
         pass
 
-    def run(self, rho_vec_init, step_fn, final_fn, n_runs, flnm=None, pbar=True):
-        self.set_operators()
+    def run(self, rho_init, step_fn, final_fn, n_runs, flnm=None, check_herm=False):
         nq, nm, ns, nt = self.sizes()
         final_results = []
         step_results = []
+        rho_is_vec = (len(rho_init.shape) == 1)
+        
+        if rho_is_vec:
+            self.set_lindblad_spr()
+            self.set_lin_meas_spr()
+
+        self.set_operators()
+        
         for run in range(n_runs):
-            rho = np.copy(rho_vec_init)
+            rho = np.copy(rho_init)
             dWs = np.sqrt(self.times[1] - self.times[0]) * np.random.randn(nt)
             step_result = [step_fn(self.times[0], rho, dWs[0])]
             
             for tdx in range(1, nt):
-                rho += _e_m_d_rho(self, tdx, rho, dWs[tdx])
+                # rho = _e_m_rho_step(self, tdx, rho, dWs[tdx], rho_is_vec=rho_is_vec, check_herm=check_herm)
+                # rho = _rk_1_rho_step(self, tdx, rho, dWs[tdx], rho_is_vec=rho_is_vec, check_herm=check_herm)
+                rho = _platen_15_rho_step(self, tdx, rho, dWs[tdx], rho_is_vec=rho_is_vec, check_herm=check_herm)
                 
                 #callback
                 if step_fn is not None:
@@ -194,35 +252,146 @@ class Simulation(object):
             with open('/'.join([getcwd(),flnm]), 'w') as phil:
                 pkl.dump(sim_dict, phil)
 
-def _e_m_d_rho(sim, tdx, rho, dW, copy=True):
+def _e_m_rho_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
+                    check_herm=False):
+    return rho + _e_m_d_rho(sim, tdx, rho, dW, copy=copy, 
+                            rho_is_vec=rho_is_vec,
+                            check_herm=check_herm)
+
+def _e_m_d_rho(sim, tdx, rho, dW, copy=True, rho_is_vec=True, check_herm=False):
     """
     Computes the Forward Explicit Euler-Maruyama step in rho using the
     arrays stored in the Simulation object.
     """
-    
+    if check_herm:
+        raise NotImplementedError("check_herm not implemented in Euler-Maruyama")
+
     dt = sim.times[1] - sim.times[0]
     drift_h = sim.apparatus.drift_hamiltonian
-    
     rho_c = rho.copy() if copy else rho
-    
     d_rho_c = np.zeros(rho_c.shape, rho_c.dtype)
-    d_rho_c += dt * (-1j) * (np.dot(drift_h, rho_c) - np.dot(rho_c, drift_h))
     cpl_l = sim.coupling_lindbladian[tdx, :, :]
     meas = sim.measurement[tdx, :, :]
     meas_d = meas.conj().transpose()
-    for op in sim.apparatus.jump_ops:
-        op_d = op.conj().transpose()
-        d_rho_c += dt * (np.dot(np.dot(op, rho_c), op_d)
-            - 0.5 * (np.dot(np.dot(op_d, op), rho_c) + 
-                        np.dot(rho_c, np.dot(op_d, op)) ))
-    d_rho_c += dt * np.multiply(cpl_l, rho_c)
-    d_rho_c += dW * ( np.dot(meas, rho_c) + np.dot(rho_c, meas_d) - 
-    np.trace(np.dot(meas + meas_d, rho_c)) * rho_c )
-    return d_rho_c
-
-def _rk_1_d_rho(sim, tdx, rho, dW, copy=True):
-    dt = sim.times[1] - sim.times[0]
-    rho_c = rho.copy() if copy else rho
+    
+    if rho_is_vec:
+        d_rho_c += dt * np.dot(sim.lindblad_spr[tdx, :, :], rho_c)
+        d_rho_c += dW * _non_lin_meas( sim.lin_meas_spr[tdx, :, :], rho_c )
+    else:
+        d_rho_c += dt * (-1j) * (np.dot(drift_h, rho_c) - np.dot(rho_c, drift_h))
+        for op in sim.apparatus.jump_ops:
+            op_d = op.conj().transpose()
+            d_rho_c += dt * (np.dot(np.dot(op, rho_c), op_d)
+                - 0.5 * (np.dot(np.dot(op_d, op), rho_c) + 
+                            np.dot(rho_c, np.dot(op_d, op)) ))
+        d_rho_c += dt * np.multiply(cpl_l, rho_c)
+        d_rho_c += dW * ( np.dot(meas, rho_c) + np.dot(rho_c, meas_d) - 
+                            np.trace(np.dot(meas + meas_d, rho_c)) * rho_c )
     
 
-    #Matrix inversion in the loop (pre-calculate later)
+    return d_rho_c
+
+def _rk_1_rho_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
+                    check_herm=False):
+    dt = sim.times[1] - sim.times[0]
+    rho_c = rho.copy() if copy else rho
+
+    if rho_is_vec:
+        l_rho = np.dot(sim.lindblad_spr[tdx, :, :], rho_c)
+        m_c_rho = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c)
+        upsilon = rho_c + l_rho * dt + m_c_rho * np.sqrt(dt)
+        m_c_ups = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], upsilon)
+        if check_herm:
+            for name, mat in zip(['l_rho', 'm_c_rho', 'upsilon', 'm_c_ups'],
+                                    [l_rho, m_c_rho, upsilon, m_c_ups]):
+                if ut.op_herm_dev(mat) > 0.1 * dt:
+                    raise ValueError("Intermediate value "
+                        "{} is not hermitian.".format(name))
+        #Explicit portion (predictor?)
+        nu_rho = 0.5 * l_rho * dt + m_c_rho * dW + 0.5/np.sqrt(dt) * (m_c_ups - m_c_rho) * (dW**2 - dt)
+        #Corrector (don't use *= for noncommutative products)
+        #Matrix inversion in the loop (pre-calculate later)
+        id_mat = np.eye(nu_rho.shape[0], dtype=ut.cpx)
+        try:
+            #nu_rho = np.dot(inv(id_mat - 0.5 * dt * sim.lindblad_spr[tdx + 1, :, :]), rho_c + nu_rho)  
+            nu_rho = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx + 1, :, :], rho_c + nu_rho)  
+        except IndexError:
+            #Last step fully explicit
+            # nu_rho = np.dot(inv(id_mat - 0.5 * dt * sim.lindblad_spr[tdx, :, :]), rho_c + nu_rho)
+            nu_rho = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx, :, :], rho_c + nu_rho)
+    else:
+        raise NotImplementedError("Strong Implicit Stochastic Order "
+            "1.0 Runge-Kutta only implemented for column-stacked "
+            "states.")
+
+    return nu_rho
+
+def _rk_1_d_rho(sim, tdx, rho, dW, copy=True, rho_is_vec=True, check_herm=False):
+    return _rk_1_rho_step(sim, tdx, rho, dW, copy=copy, 
+                            rho_is_vec=rho_is_vec,
+                            check_herm=check_herm) - rho
+
+def _platen_15_rho_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
+                    check_herm=False):
+    
+    if not(rho_is_vec):
+        raise NotImplementedError("rho_is_vec must be True "
+                                    "for _platen_15_step")
+    
+    dt = sim.times[1] - sim.times[0]
+    rho_c = rho.copy() if copy else rho
+
+    #Ito Integrals
+    u_1, u_2 = dW/np.sqrt(dt), np.random.randn()
+    I_10  = 0.5 * dt**1.5 * (u_1 + u_2/np.sqrt(3.)) 
+    I_00  = 0.5 * dt**2 
+    I_01  = dW * dt - I_10 
+    I_11  = 0.5 * (dW**2 - dt) 
+    I_111 = 0.5 * (dW**2/3. - dt) * dW 
+    #Evaluations of DE functions
+    det_v  = np.dot(sim.lindblad_spr[tdx,:,:], rho_c) #det_f(t, rho)
+    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx,:,:], rho_c) #stoc_f(t, rho) 
+    #Nasty hack to avoid last timestep error
+    try:
+        det_vp = np.dot(sim.lindblad_spr[tdx + 1,:,:], rho_c) #det_f(t + dt, rho)
+        stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx + 1,:,:], rho_c) #stoc_f(t + dt, rho)
+    except IndexError:
+        det_vp = np.dot(sim.lindblad_spr[tdx,:,:], rho_c) #det_f(t + dt, rho)
+        stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx,:,:], rho_c) #stoc_f(t + dt, rho)
+    
+    #Supporting Values
+    u_p = rho_c + det_v * dt + stoc_v * np.sqrt(dt)
+    u_m = rho_c + det_v * dt - stoc_v * np.sqrt(dt)
+    det_u_p = np.dot(sim.lindblad_spr[tdx,:,:], u_p) #det_f(t, u_p)
+    det_u_m = np.dot(sim.lindblad_spr[tdx,:,:], u_m) #det_f(t, u_m)
+    stoc_u_p = _non_lin_meas(sim.lin_meas_spr[tdx,:,:], u_p) #stoc_f(t, u_p)
+    stoc_u_m = _non_lin_meas(sim.lin_meas_spr[tdx,:,:], u_m) #stoc_f(t, u_m)
+    phi_p = u_p + stoc_u_p * np.sqrt(dt)
+    phi_m = u_p - stoc_u_p * np.sqrt(dt)
+    stoc_phi_p = _non_lin_meas(sim.lin_meas_spr[tdx,:,:], phi_p)
+    stoc_phi_m = _non_lin_meas(sim.lin_meas_spr[tdx,:,:], phi_m)
+    #Euler term
+    rho_c += det_v * dt + stoc_v * dW 
+    #1/(2 * np.sqrt(dt)) term
+    rho_c += ((det_u_p - det_u_m) * I_10 +
+             (stoc_u_p - stoc_u_m) * I_11) / (2. * np.sqrt(dt)) 
+    #1/dt term
+    rho_c += ((det_vp - det_v) * I_00 +
+             (stoc_vp - stoc_v) * I_01) / dt 
+    #first 1/(2 dt) term
+    rho_c += ((det_u_p - 2. * det_v + det_u_m) * I_00
+             + (stoc_u_p - 2. * stoc_v + stoc_u_m) * I_01) / (2. * dt) 
+    #second 1/(2 dt) term
+    rho_c += (stoc_phi_p - stoc_phi_m 
+                - stoc_u_p + stoc_u_m) * I_111 / (2. * dt) 
+
+    return rho_c
+
+def _platen_15_d_rho(sim, tdx, rho, dW, copy=True, rho_is_vec=True, check_herm=False):
+    return _platen_15_rho_step(sim, tdx, rho, dW, copy=copy, 
+                            rho_is_vec=rho_is_vec,
+                            check_herm=check_herm) - rho
+
+def _non_lin_meas(lin_meas, rho):
+    temp_vec = np.dot(lin_meas, rho)
+    return temp_vec - ut.op_trace(temp_vec) * rho

@@ -3,7 +3,9 @@ import numpy as np
 import itertools as it
 from scipy.linalg import sqrtm
 
+#cpx = np.complex64
 cpx = np.complex128
+# cpx = np.complex256 #UNSUPPORTED IN LINALG
 
 id_2 = np.eye(2, dtype=cpx)
 
@@ -43,12 +45,77 @@ def arctan_up(t, e_ss, sigma, t_on, t_off):
     
     return e_ss / np.pi * (np.arctan(sigma * (t - t_on)) + np.pi/2.)
 
-def overlap(a_mat, b_mat):
+def overlap(a, b, nq):
     """
-    Determines the H-S inner product (tr(A^+ B)) between two 
-    matrices.
+    Determines the overlap between two `nq`-qubit quantum 
+    states/operators. Requires `nq` to determine whether the 
+    states/operators are vectors, supervectors or matrices of the 
+    appropriate size.
     """
-    return np.dot(a_mat.conj().transpose(), b_mat)
+    ns = 2**nq
+    #Produce equivalent supervectors
+    if a.shape == (ns, ):
+        super_a = np.kron(a.conj(), a)
+    elif a.shape == (ns, ns):
+        super_a = mat2vec(a)
+    else:
+        super_a = a
+    
+    if b.shape == (ns, ):
+        super_b = np.kron(b.conj(), b)
+    elif b.shape == (ns, ns):
+        super_b = mat2vec(b)
+    else:
+        super_b = b
+    
+    try:
+        prod = np.dot(super_a.conj(), super_b)
+    except ValueError, e:
+        print("super_a.shape: {}".format(super_a.shape))
+        print("super_b.shape: {}".format(super_b.shape))
+        raise e
+    return prod
+
+def op_trace(op):
+    """
+    Calculates the trace of a quantum state, assuming that state is 
+    either in the form of a matrix (in which case, we take the trace
+    normally), or column-stacked (in which case, we iterate over the 
+    big vector)
+    """
+    if len(op.shape) == 2:
+        return np.trace(op)
+    elif len(op.shape) == 1:
+        sqrt_sz = int(np.sqrt(op.shape[0]))
+        return sum([op[(sqrt_sz + 1) * ddx] for ddx in range(sqrt_sz)])
+    else:
+        raise ValueError("Shape of array must be 1d or 2d")
+
+def op_herm_dev(op):
+    """
+    Calculates the deviation from hermiticity of a quantum state, 
+    assuming that the state is either a density matrix or supervector.
+    """
+    if len(op.shape) == 2:
+        return np.amax(abs(op - op.conj().transpose()))
+    elif len(op.shape) == 1:
+        sz = int(np.sqrt(op.shape[0]))
+        return max([abs(op[sz * rdx + cdx] - op[sz * cdx + rdx].conj())
+                     for rdx, cdx in it.product(range(sz), repeat=2)])
+    else:
+        raise ValueError("Shape of array must be 1d or 2d")
+
+
+def op_purity(op):
+    """
+    Calculates the purity of a quantum state, 
+    """
+    if len(op.shape) == 2:
+        return np.trace(np.dot(op.conj().transpose(), op))
+    elif len(op.shape) == 1:
+        return np.dot(op.conj(), op)
+    else:
+        raise ValueError("Shape of array must be 1d or 2d")
 
 def fidelity(rho, sigma):
     """
@@ -78,9 +145,9 @@ def concurrence(rho):
     return lmbds[0] - lmbds[1] - lmbds[2] - lmbds[3]
 
 def check_cb(t, rho, dW):
-    hm = herm_dev(rho)
-    tr = np.trace(rho)
-    pr = np.trace(np.dot(rho, rho)) 
+    hm = op_herm_dev(rho)
+    tr = op_trace(rho)
+    pr = op_purity(rho) 
     min_e, max_e = min_max_eig(rho)
     return hm, tr, pr, min_e, max_e
 
@@ -108,21 +175,16 @@ def herm_dev_vec(vec):
     
     return max_abs_dev
 
-def min_max_eig_vec(vec):
+def min_max_eig(op, copy=True):
     """
-    Assuming that vec is a column-stacked matrix, returns the min and 
-    max eigenvalues.
+    Calculates the min and max eigenvalues of a quantum state (either 
+    density matrix or supervector).
     """
-    mat = vec2mat(vec)
-    eigs = np.linalg.eig(mat)[0]
-    return min(eigs), max(eigs)
-
-def min_max_eig(mat):
-    """
-    Assuming that mat is a matrix, returns the min and 
-    max eigenvalues.
-    """
-    eigs = np.linalg.eig(mat)[0]
+    op_c = op.copy() if copy else op
+    if len(op_c.shape) == 1:
+        op_c = vec2mat(op_c)
+    
+    eigs = np.linalg.eig(op_c)[0]
     return min(eigs), max(eigs)
 
 def vec_purity(vec):

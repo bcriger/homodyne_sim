@@ -30,7 +30,7 @@ if __name__ == '__main__':
     # pulse = lambda t: arctan_up(t, e_ss, sigma, t_on, t_off)    
     pulse = lambda t: cnst_pulse(t, e_ss)
     #-----Simulation Prep-----#
-    t_b_diV_sim = sm.Simulation(t_b_diV_app, np.linspace(0., tau, 1000), pulse)
+    t_b_diV_sim = sm.Simulation(t_b_diV_app, np.linspace(0., tau, 10000), pulse)
     t_b_diV_sim.set_operators()
 
     #-----Callback Functions-----#
@@ -41,15 +41,15 @@ if __name__ == '__main__':
     minus_state = np.array([0., 1., 1., 0., 1., 0., 0., 1.])/2.
     plus_mat = np.outer(plus_state, plus_state)
     minus_mat = np.outer(minus_state, minus_state)
-    rho_init = 0.125 * np.ones((8,8), np.complex128)
+    rho_init = 0.125 * np.ones((64, ), cpx)
     
     def end_cb(rho):
-        zzz = overlap(zzz_mat, rho)
-        f_plus = fidelity(rho, plus_mat)
-        f_minus = fidelity(rho, minus_mat)
-        f_input = fidelity(rho, rho_init)
+        zzz = overlap(zzz_mat, rho, t_b_diV_app.nq)
+        f_plus = np.sqrt(overlap(rho, plus_mat, t_b_diV_app.nq))
+        f_minus = np.sqrt(overlap(rho, minus_mat, t_b_diV_app.nq))
+        f_input = np.sqrt(overlap(rho, rho_init, t_b_diV_app.nq))
         return zzz, f_plus, f_minus, f_input
     
 
-    #cProfile.run("t_b_diV_sim.run(rho_init, step_cb, end_cb, 10, 'test.pkl')")
-    t_b_diV_sim.run(rho_init, check_cb, end_cb, 100, 'test.pkl')
+    cProfile.run("t_b_diV_sim.run(rho_init, check_cb, end_cb, 1, 'test.pkl', check_herm=False)")
+    # t_b_diV_sim.run(rho_init, check_cb, end_cb, 20, 'test10000.pkl', check_herm=False)
