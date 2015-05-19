@@ -1,10 +1,8 @@
 import numpy as np
 from numpy.linalg import eigvalsh
 from numpy.random import rand
-import Apparatus as app
-import Simulation as sim 
+import homodyne_sim as hs
 import itertools as it
-from utils import *
 
 """
 Meant to be run with nosetests
@@ -12,7 +10,7 @@ Meant to be run with nosetests
 
 #Lots of matrices used below, we make them all size 10 and use double 
 #precision, so we can imagine that everything's correct up to 10**-14:
-dtp = cpx
+dtp = hs.cpx
 num_tol = 10**-13
 
 nq = 4
@@ -48,26 +46,26 @@ def rand_pure_state(sz):
 
 def mat2vec2mat_test():
     rnd_vec = rand_super_vec(size)
-    assert (mat2vec(vec2mat(rnd_vec)) == rnd_vec).all()
+    assert (hs.mat2vec(hs.vec2mat(rnd_vec)) == rnd_vec).all()
 
 def vec2mat2vec_test():
     rnd_mat = rand_dens_mat(size)
-    assert (vec2mat(mat2vec(rnd_mat)) == rnd_mat).all()
+    assert (hs.vec2mat(hs.mat2vec(rnd_mat)) == rnd_mat).all()
 
 def op_trace_test():
     rnd_mat = rand_mat(size)
-    assert abs(op_trace(rnd_mat) - op_trace(mat2vec(rnd_mat))) < num_tol
+    assert abs(hs.op_trace(rnd_mat) - hs.op_trace(hs.mat2vec(rnd_mat))) < num_tol
 
 def op_purity_test():
     rnd_mat = rand_mat(size)
-    assert abs(op_purity(rnd_mat) - op_purity(mat2vec(rnd_mat))) < num_tol
+    assert abs(hs.op_purity(rnd_mat) - hs.op_purity(hs.mat2vec(rnd_mat))) < num_tol
 
 def purity_1_bit_test():
     r = rand()
     diag_state = np.matrix([[r, 0.], [0., 1. - r]], dtype=dtp)
     test_purity = r**2 + (1. - r)**2
-    assert abs(op_purity(diag_state) - test_purity) < num_tol
-    assert abs(op_purity(mat2vec(diag_state)) - test_purity) < num_tol
+    assert abs(hs.op_purity(diag_state) - test_purity) < num_tol
+    assert abs(hs.op_purity(hs.mat2vec(diag_state)) - test_purity) < num_tol
 
 def overlap_test():
     """
@@ -84,25 +82,25 @@ def overlap_test():
     vec_a = proj_a.transpose().reshape((size**2,))
     vec_b = proj_b.transpose().reshape((size**2,))
     
-    pure_overlap = overlap(pure_a, pure_b, nq)
+    pure_overlap = hs.overlap(pure_a, pure_b, nq)
     
     for a, b in it.product([pure_a, proj_a, vec_a],
                             [pure_b, proj_b, vec_b]):
-        assert abs(overlap(a, b, nq) - pure_overlap) < num_tol
+        assert abs(hs.overlap(a, b, nq) - pure_overlap) < num_tol
     
     mix_a = rand_dens_mat(size)
     mix_b = rand_dens_mat(size)
     mix_v_a = mix_a.transpose().reshape((size**2,))
     mix_v_b = mix_b.transpose().reshape((size**2,))
     
-    mix_overlap = overlap(mix_a, mix_b, nq)
+    mix_overlap = hs.overlap(mix_a, mix_b, nq)
     for a, b in it.product([mix_a, mix_v_a], [mix_b, mix_v_b]):
-        assert abs(overlap(a, b, nq) - mix_overlap) < num_tol
+        assert abs(hs.overlap(a, b, nq) - mix_overlap) < num_tol
 
 def min_max_eig_test():
     rho = rand_dens_mat(size)
     real_eigs = min(eigvalsh(rho)), max(eigvalsh(rho))
-    test_eigs = min_max_eig(rho)
+    test_eigs = hs.min_max_eig(rho)
     assert abs(real_eigs[0] - test_eigs[0]) < num_tol
     assert abs(real_eigs[1] - test_eigs[1]) < num_tol
 
@@ -110,7 +108,7 @@ def op_herm_dev_test():
     #Generate random hermitian matrix
     hm_mat = rand_herm_mat(10)
     anti_hm_mat = 1j * hm_mat
-    assert op_herm_dev(hm_mat) < 10**-12
-    assert op_herm_dev(mat2vec(hm_mat)) < 10**-12
-    assert op_herm_dev(anti_hm_mat) > 10**-12
-    assert op_herm_dev(mat2vec(anti_hm_mat)) > 10**-12
+    assert hs.op_herm_dev(hm_mat) < 10**-12
+    assert hs.op_herm_dev(hs.mat2vec(hm_mat)) < 10**-12
+    assert hs.op_herm_dev(anti_hm_mat) > 10**-12
+    assert hs.op_herm_dev(hs.mat2vec(anti_hm_mat)) > 10**-12
