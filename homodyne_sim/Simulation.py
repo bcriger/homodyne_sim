@@ -208,7 +208,10 @@ class Simulation(object):
             self.set_measurement()
         pass
 
-    def run(self, rho_init, step_fn, final_fn, n_runs, flnm=None, check_herm=False):
+    def run(self, rho_init, step_fn, final_fn, n_runs, flnm=None,
+            check_herm=False, det=False):
+        #TODO: Set simulation object to be deterministic or not, don't
+        #do that here.
         nq, nm, ns, nt = self.sizes()
         final_results = []
         step_results = []
@@ -220,9 +223,16 @@ class Simulation(object):
 
         self.set_operators()
         
+        dt = np.sqrt(self.times[1] - self.times[0]) 
+
         for run in xrange(n_runs):
             rho = np.copy(rho_init)
-            dWs = np.sqrt(self.times[1] - self.times[0]) * np.random.randn(nt)
+            
+            if det:
+                dWs = np.zeros(nt, dtype=ut.cpx)
+            else:
+                dWs = dt * np.random.randn(nt)
+            
             step_result = [step_fn(self.times[0], rho, dWs[0])]
             
             for tdx in range(1, nt):
