@@ -11,7 +11,8 @@ __all__=['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat',
         'vec_purity', 'vec_tr', 'bt_sn', 'm_c_rho', 'm_c_rho_op',
         'com_mat', 'diss_mat', 'lin_meas_mat', 'gamma_1_lind', 
         'gamma_2_lind',  'z_ham', 'interquartile_range', 
-        'f_d_bin_width', 'fd_bins', 'colour_hist']
+        'f_d_bin_width', 'fd_bins', 'colour_hist', 'tanh_updown',
+        'tanh_up']
 
 #cpx = np.complex64
 cpx = np.complex128
@@ -48,12 +49,22 @@ cnst_pulse = lambda t, cnst: cnst
 
 def arctan_updown(t, e_ss, sigma, t_on, t_off):
     
-    return e_ss / np.pi * (np.arctan(sigma * (t - t_on)) - 
-                            np.arctan(sigma * (t - t_off)))
+    return e_ss / np.pi * (np.arctan((t - t_on) / sigma) - 
+                            np.arctan((t - t_off) / sigma ))
 
-def arctan_up(t, e_ss, sigma, t_on, t_off):
+def arctan_up(t, e_ss, sigma, t_on):
     
-    return e_ss / np.pi * (np.arctan(sigma * (t - t_on)) + np.pi/2.)
+    return e_ss / np.pi * (np.arctan((t - t_on) / sigma) + np.pi/2.)
+
+
+def tanh_updown(t, e_ss, sigma, t_on, t_off):
+    
+    return e_ss / 2. * (np.tanh((t - t_on) / sigma) - 
+                            np.tanh((t - t_off) / sigma))
+
+def tanh_up(t, e_ss, sigma, t_on):
+    
+    return e_ss / 2. * (np.tanh((t - t_on) / sigma) + 1.)
 
 def overlap(a, b, nq):
     """
