@@ -10,7 +10,7 @@ import cPickle as pkl
 from os import getcwd
 #import progressbar as pb #some day . . .
 import utils as ut
-from sde_solve import platen_15_step
+#from sde_solve import platen_15_step
 
 __all__ = ['Simulation', '_platen_15_rho_step', '_non_lin_meas']
 
