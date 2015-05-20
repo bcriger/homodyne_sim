@@ -69,6 +69,7 @@ class Apparatus(object):
                 raise ValueError("Shapes inconsistent, "
                     "{}.shape = {} (should be {})".format(
                         key, test_shape, coupling_shape))
+        
         #If these tests pass, we can set arrays:
         self._delta = arg_dict['delta']
         self._chi = arg_dict['chi']

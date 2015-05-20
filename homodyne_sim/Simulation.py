@@ -1,5 +1,6 @@
 import numpy as np 
 from scipy.linalg import inv
+from scipy.integrate import ode
 from Apparatus import Apparatus
 from types import FunctionType
 from odeintw import odeintw
@@ -10,7 +11,6 @@ import cPickle as pkl
 from os import getcwd
 #import progressbar as pb #some day . . .
 import utils as ut
-#from sde_solve import platen_15_step
 
 __all__ = ['Simulation', '_platen_15_rho_step', '_non_lin_meas']
 
@@ -208,30 +208,58 @@ class Simulation(object):
             self.set_measurement()
         pass
 
-    def run(self, rho_init, step_fn, final_fn, n_runs, flnm=None,
-            check_herm=False, det=False):
-        #TODO: Set simulation object to be deterministic or not, don't
-        #do that here.
+    def classical_sim(self, rho_init, step_fn, flnm=None,
+                        check_herm=False):
+        
         nq, nm, ns, nt = self.sizes()
-        final_results = []
-        step_results = []
         rho_is_vec = (len(rho_init.shape) == 1)
         
         if rho_is_vec:
             self.set_lindblad_spr()
             self.set_lin_meas_spr()
+        else:
+            raise ValueError("Vectorize initial rho!")
 
-        self.set_operators()
+        dt = np.sqrt(self.times[1] - self.times[0])
+        rho = np.copy(rho_init)
+        step_result = [step_fn(self.times[0], rho)]
+            
+        for tdx in range(1, nt):
+            rho = _trapezoid_rho_step(self, tdx, rho, 
+                                    rho_is_vec=rho_is_vec,
+                                    check_herm=check_herm)
+            #callback
+            if step_fn is not None:
+                step_result.append(step_fn(self.times[tdx], rho.copy()))
+
+        if flnm is None:
+            return step_result
+        else:
+            sim_dict = {'apparatus': self.apparatus,
+                        'times': self.times,
+                        'pulse_shape': self.pulse_fn(self.times),
+                        'step_result': step_result}
+            with open('/'.join([getcwd(),flnm]), 'w') as phil:
+                pkl.dump(sim_dict, phil)
+
+    def run(self, rho_init, step_fn, final_fn, n_runs, flnm=None,
+            check_herm=False):
+        nq, nm, ns, nt = self.sizes()
+        final_results = []
+        step_results = []
+        rho_is_vec = (len(rho_init.shape) == 1)
         
+        self.set_operators()
+
+        if rho_is_vec:
+            self.set_lindblad_spr()
+            self.set_lin_meas_spr()
+
         dt = np.sqrt(self.times[1] - self.times[0]) 
 
         for run in xrange(n_runs):
             rho = np.copy(rho_init)
-            
-            if det:
-                dWs = np.zeros(nt, dtype=ut.cpx)
-            else:
-                dWs = dt * np.random.randn(nt)
+            dWs = dt * np.random.randn(nt)
             
             step_result = [step_fn(self.times[0], rho, dWs[0])]
             
@@ -318,3 +346,33 @@ def _platen_15_rho_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
 def _non_lin_meas(lin_meas, rho):
     temp_vec = np.dot(lin_meas, rho)
     return temp_vec - ut.op_trace(temp_vec) * rho
+
+def _trapezoid_rho_step(sim, tdx, rho, copy=True, rho_is_vec=True,
+                        check_herm=False):
+    """
+    Uses the trapezoid rule for linear ODEs to step rho classically.
+    This is only used by classical_sim.
+    """
+    dt = sim.times[1] - sim.times[0]
+    rho_c = rho.copy() if copy else rho
+
+    if rho_is_vec:
+      l_rho = np.dot(sim.lindblad_spr[tdx, :, :], rho_c)
+      if check_herm:
+          if ut.op_herm_dev(l_rho) > 0.1 * dt:
+                  raise ValueError("Intermediate value "
+                      "l_rho is not hermitian.")
+      #Explicit portion (predictor?)
+      nu_rho = rho_c + 0.5 * l_rho * dt 
+      #Implicit portion (corrector?) 
+      id_mat = np.eye(nu_rho.shape[0], dtype=ut.cpx)
+      try:  
+          nu_rho = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx + 1, :, :], nu_rho)  
+      except IndexError:
+          #Last step fully explicit
+          nu_rho = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx, :, :], nu_rho)
+    else:
+      raise NotImplementedError("Trapezoid rule only implemented for "
+                                    "column-stacked states.")
+
+    return nu_rho
