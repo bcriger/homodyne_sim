@@ -11,7 +11,7 @@ Meant to be run with nosetests
 #Lots of matrices used below, we make them all size 10 and use double 
 #precision, so we can imagine that everything's correct up to 10**-14:
 dtp = hs.cpx
-num_tol = 10**-13
+num_tol = 10**-12
 
 nq = 4
 size = 2**nq
