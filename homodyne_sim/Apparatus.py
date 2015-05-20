@@ -183,7 +183,7 @@ def _qubit_dephasing_ops(app):
     op_lst = []
     for l in range(app.nq):
         sigma_z_l = ut.single_op(ut.sigma_z, l, app.nq)
-        op_lst.append(np.sqrt(app.gamma_phi[l]) * sigma_z_l)
+        op_lst.append(np.sqrt(0.5 * app.gamma_phi[l]) * sigma_z_l)
     return op_lst
 
 def _purcell_ops(app):
