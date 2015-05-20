@@ -8,7 +8,7 @@ from itertools import product
 import seaborn as sb
 import cPickle as pkl
 from os import getcwd
-import ipy_progressbar as pb
+#import progressbar as pb #some day . . .
 import utils as ut
 from sde_solve import platen_15_step
 
@@ -220,7 +220,7 @@ class Simulation(object):
 
         self.set_operators()
         
-        for run in range(n_runs):
+        for run in xrange(n_runs):
             rho = np.copy(rho_init)
             dWs = np.sqrt(self.times[1] - self.times[0]) * np.random.randn(nt)
             step_result = [step_fn(self.times[0], rho, dWs[0])]
