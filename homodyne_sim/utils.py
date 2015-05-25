@@ -1,5 +1,6 @@
 import pylab as pl 
-import numpy as np 
+import numpy as np
+from numpy.linalg import eig
 import itertools as it
 from scipy.linalg import sqrtm
 
@@ -168,16 +169,21 @@ def photocurrent(t, rho, dW, sim):
     """
     tdx = np.argmin(np.abs(sim.times - t))
     c = sim.measurement[tdx, :, :]
-    return np.trace(np.dot(c + c.conj().transpose(), rho)) + dW
+    if len(rho.shape) == 1:
+        rho_c = vec2mat(rho)
+    else:
+        rho_c = rho
+    return np.trace(np.dot(c + c.conj().transpose(), rho_c)) + dW
 
 def concurrence(rho):
     r"""
     wikipedia.org/wiki/Concurrence_%28quantum_computing%29#Definition
     """
-    if rho.shape != (4,4):
+    if rho.shape not in [(4,4), (16,)]:
         raise ValueError("Concurrence only works for two-qubit states")
-    test_mat = reduce(np.dot, [rho, YY, rho.conj(), YY])
-    lmbds = sorted(map(np.sqrt, np.eigs(test_mat)[0]))
+    rho_c = vec2mat(np.copy(rho)) if rho.shape == (16,) else rho
+    test_mat = reduce(np.dot, [rho_c, YY, rho_c.conj(), YY])
+    lmbds = sorted(map(np.sqrt, eig(test_mat)[0]))
     return lmbds[0] - lmbds[1] - lmbds[2] - lmbds[3]
 
 def check_cb(t, rho, dW):
