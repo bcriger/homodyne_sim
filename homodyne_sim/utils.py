@@ -3,25 +3,40 @@ import numpy as np
 import itertools as it
 from scipy.linalg import sqrtm
 
-__all__=['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat', 
-        'mat2vec', 'state2vec', 'single_op', 'arctan_updown',
-        'arctan_up', 'overlap', 'op_trace', 'op_herm_dev', 'op_purity',
-        'fidelity', 'photocurrent', 'concurrence', 'check_cb', 
-        'all_zs', 'herm_dev', 'herm_dev_vec', 'min_max_eig', 
-        'vec_purity', 'vec_tr', 'bt_sn', 'm_c_rho', 'm_c_rho_op',
-        'com_mat', 'diss_mat', 'lin_meas_mat', 'gamma_1_lind', 
-        'gamma_2_lind',  'z_ham', 'interquartile_range', 
-        'f_d_bin_width', 'fd_bins', 'colour_hist', 'tanh_updown',
-        'tanh_up']
+__all__ = ['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat', 
+            'mat2vec', 'state2vec', 'single_op', 'arctan_updown',
+            'arctan_up', 'overlap', 'op_trace', 'op_herm_dev', 'op_purity',
+            'fidelity', 'photocurrent', 'concurrence', 'check_cb', 
+            'all_zs', 'herm_dev', 'herm_dev_vec', 'min_max_eig', 
+            'vec_purity', 'vec_tr', 'bt_sn', 'm_c_rho', 'm_c_rho_op',
+            'com_mat', 'diss_mat', 'lin_meas_mat', 'gamma_1_lind', 
+            'gamma_2_lind',  'z_ham', 'interquartile_range', 
+            'f_d_bin_width', 'fd_bins', 'colour_hist', 'tanh_updown',
+            'tanh_up', 'sigma_x', 'sigma_y']
 
 #cpx = np.complex64
 cpx = np.complex128
 # cpx = np.complex256 #UNSUPPORTED IN LINALG
 
+"""
+HINWEIS: We adopt the convention throughout that the excited state is 
+the 0 state, and the ground state is the 1 state. This keeps the 
+Hamiltonian proportional to Pauli Z, but implies that the other Pauli
+matrices are transposed wrt the standard definition.
+"""
+
 id_2 = np.eye(2, dtype=cpx)
 
-sigma_m = np.array([[0., 1.], [
-                     0., 0.]], dtype=cpx)
+# sigma_m = np.array([[0., 1.], [
+#                      0., 0.]], dtype=cpx)
+sigma_m = np.array([[0., 0.], [
+                     1., 0.]], dtype=cpx)
+
+sigma_x = np.array([[0., 1.], [
+                     1., 0.]], dtype=cpx)
+
+sigma_y = np.array([[ 0.,  1j], [
+                     -1j,  0.]], dtype=cpx)
 
 sigma_z = np.array([[1.,  0.], [
                      0., -1.]], dtype=cpx)
