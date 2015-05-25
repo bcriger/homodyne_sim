@@ -243,7 +243,11 @@ class Simulation(object):
                 pkl.dump(sim_dict, phil)
 
     def run(self, rho_init, step_fn, final_fn, n_runs, flnm=None,
-            check_herm=False):
+            check_herm=False, seed=None):
+        
+        if seed:
+            np.random.seed(seed)
+
         nq, nm, ns, nt = self.sizes()
         final_results = []
         step_results = []
