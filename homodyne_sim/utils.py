@@ -13,7 +13,7 @@ __all__ = ['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat',
             'com_mat', 'diss_mat', 'lin_meas_mat', 'gamma_1_lind', 
             'gamma_2_lind',  'z_ham', 'interquartile_range', 
             'f_d_bin_width', 'fd_bins', 'colour_hist', 'tanh_updown',
-            'tanh_up', 'sigma_x', 'sigma_y']
+            'tanh_up', 'sigma_x', 'sigma_y', 'cnst_pulse']
 
 #cpx = np.complex64
 cpx = np.complex128
@@ -61,7 +61,7 @@ def state2vec(lil_vec):
 def single_op(mat, q, nq):
     return reduce(np.kron, [mat if l==q else id_2 for l in range(nq)])
 
-cnst_pulse = lambda t, cnst: cnst
+cnst_pulse = lambda t, cnst: cnst + t - t #for arrays
 
 def arctan_updown(t, e_ss, sigma, t_on, t_off):
     
