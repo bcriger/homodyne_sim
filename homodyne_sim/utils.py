@@ -191,7 +191,7 @@ def check_cb(t, rho, dW):
     tr = op_trace(rho)
     pr = op_purity(rho) 
     min_e, max_e = min_max_eig(rho)
-    return hm, tr, pr, min_e, max_e
+    return np.array([hm, tr, pr, min_e, max_e])
 
 def all_zs(nq):
     """
