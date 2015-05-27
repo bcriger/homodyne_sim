@@ -208,7 +208,7 @@ class Simulation(object):
             self.set_measurement()
         pass
 
-    def classical_sim(self, rho_init, step_fn, flnm=None,
+    def classical_sim(self, rho_init, step_fn=None, flnm=None,
                         check_herm=False):
         
         nq, nm, ns, nt = self.sizes()
@@ -222,15 +222,21 @@ class Simulation(object):
 
         dt = np.sqrt(self.times[1] - self.times[0])
         rho = np.copy(rho_init)
-        step_result = [step_fn(self.times[0], rho)]
-            
+        if step_fn is not None:
+            #Use t=0 result of step_fn to set size of returned array
+            first_step = step_fn(self.times[0], rho)
+            step_result = np.empty((nt,) + first_step.shape, dtype=ut.cpx)
+            step_result[0, :] = first_step
+        else:
+            step_result = None
+        
         for tdx in range(1, nt):
             rho = _trapezoid_rho_step(self, tdx, rho, 
                                     rho_is_vec=rho_is_vec,
                                     check_herm=check_herm)
             #callback
             if step_fn is not None:
-                step_result.append(step_fn(self.times[tdx], rho.copy()))
+                step_result[tdx, :] = step_fn(self.times[tdx], rho.copy())
 
         if flnm is None:
             return step_result
@@ -242,15 +248,27 @@ class Simulation(object):
             with open('/'.join([getcwd(),flnm]), 'w') as phil:
                 pkl.dump(sim_dict, phil)
 
-    def run(self, rho_init, step_fn, final_fn, n_runs, flnm=None,
+    def run(self, n_runs, rho_init, step_fn=None, final_fn=None, flnm=None,
             check_herm=False, seed=None):
         
         if seed:
             np.random.seed(seed)
 
         nq, nm, ns, nt = self.sizes()
-        final_results = []
-        step_results = []
+        #use function calls to get sizes of output
+        if step_fn is not None:
+            test_step = step_fn(self.times[0], rho_init.copy(), dWs[0])
+            step_results = np.empty((n_runs, nt) + test_step.shape, 
+                                                        dtype=ut.cpx)
+        else:
+            step_results = None
+
+        if final_fn is not None:
+            test_final = final_fn(rho_init.copy()) #garb, only need shape
+            final_results = np.empty((n_runs, ) + test_final.shape, dtype=ut.cpx)
+        else:
+            final_results = None
+
         rho_is_vec = (len(rho_init.shape) == 1)
         
         self.set_operators()
@@ -265,8 +283,8 @@ class Simulation(object):
             rho = np.copy(rho_init)
             dWs = dt * np.random.randn(nt)
             
-            step_result = [step_fn(self.times[0], rho, dWs[0])]
-            
+            step_results[run, 0, ...] = test_step
+
             for tdx in range(1, nt):
                 rho = _platen_15_rho_step(self, tdx, rho, dWs[tdx], 
                                             rho_is_vec=rho_is_vec,
@@ -274,11 +292,11 @@ class Simulation(object):
                 
                 #callback
                 if step_fn is not None:
-                    step_result.append(step_fn(self.times[tdx], rho.copy(), dWs[tdx]))
-                
-            step_results.append(step_result)
+                    step_results[run, tdx, ...] = \
+                        step_fn(self.times[tdx], rho.copy(), dWs[tdx])
+            
             if final_fn is not None:
-                final_results.append(final_fn(rho.copy()))
+                final_results[run, ...] = final_fn(rho.copy())
         
         if flnm is None:
             return final_results, step_results
