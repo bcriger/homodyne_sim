@@ -257,7 +257,7 @@ class Simulation(object):
         nq, nm, ns, nt = self.sizes()
         #use function calls to get sizes of output
         if step_fn is not None:
-            test_step = step_fn(self.times[0], rho_init.copy(), dWs[0])
+            test_step = step_fn(self.times[0], rho_init.copy(), 0.)
             step_results = np.empty((n_runs, nt) + test_step.shape, 
                                                         dtype=ut.cpx)
         else:
@@ -283,7 +283,8 @@ class Simulation(object):
             rho = np.copy(rho_init)
             dWs = dt * np.random.randn(nt)
             
-            step_results[run, 0, ...] = test_step
+            if step_fn is not None:
+                step_results[run, 0, ...] = step_fn(self.times[0], rho, dWs[0])
 
             for tdx in range(1, nt):
                 rho = _platen_15_rho_step(self, tdx, rho, dWs[tdx], 
