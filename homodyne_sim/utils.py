@@ -61,7 +61,7 @@ def state2vec(lil_vec):
 def single_op(mat, q, nq):
     return reduce(np.kron, [mat if l==q else id_2 for l in range(nq)])
 
-cnst_pulse = lambda t, cnst: cnst + t - t #for arrays
+cnst_pulse = lambda t, cnst: cnst
 
 def arctan_updown(t, e_ss, sigma, t_on, t_off):
     
