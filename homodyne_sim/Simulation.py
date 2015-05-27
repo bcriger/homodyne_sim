@@ -29,7 +29,7 @@ class Simulation(object):
         self.apparatus = apparatus
         self.times = np.array(times, dtype=np.float64)
         
-        if not(type(pulse_fn) is FunctionType):
+        if not(hasattr(pulse_fn, '__call__')):
             raise TypeError("pulse_fn must be a function.")
         
         self.pulse_fn = pulse_fn
