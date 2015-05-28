@@ -183,7 +183,7 @@ def concurrence(rho):
         raise ValueError("Concurrence only works for two-qubit states")
     rho_c = vec2mat(np.copy(rho)) if rho.shape == (16,) else rho
     test_mat = reduce(np.dot, [rho_c, YY, rho_c.conj(), YY])
-    lmbds = sorted(map(np.sqrt, eig(test_mat)[0]))
+    lmbds = list(reversed(sorted(map(np.sqrt, eig(test_mat)[0]))))
     return max(0., lmbds[0] - lmbds[1] - lmbds[2] - lmbds[3])
 
 def check_cb(t, rho, dW):
