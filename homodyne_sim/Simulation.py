@@ -220,7 +220,7 @@ class Simulation(object):
         else:
             raise ValueError("Vectorize initial rho!")
 
-        dt = np.sqrt(self.times[1] - self.times[0])
+        dt = self.times[1] - self.times[0]
         rho = np.copy(rho_init)
         if step_fn is not None:
             #Use t=0 result of step_fn to set size of returned array
@@ -277,11 +277,11 @@ class Simulation(object):
             self.set_lindblad_spr()
             self.set_lin_meas_spr()
 
-        dt = np.sqrt(self.times[1] - self.times[0]) 
+        dt = self.times[1] - self.times[0] 
 
         for run in xrange(n_runs):
             rho = np.copy(rho_init)
-            dWs = dt * np.random.randn(nt)
+            dWs = np.sqrt(dt) * np.random.randn(nt)
             
             if step_fn is not None:
                 step_results[run, 0, ...] = step_fn(self.times[0], rho, dWs[0])
