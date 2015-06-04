@@ -72,7 +72,7 @@ class Simulation(object):
                 #driving term
                 alpha_dot[k, i] += -1j * (np.sqrt(kappa[k]) *
                                              self.pulse_fn(t)) 
-                # alpha_dot[k, i] += -1j * self.pulse_fn(t) 
+                
                 #damping term
                 for kp in range(nm):
                     alpha_dot[k, i] -= 0.5 * np.sqrt(kappa[k] * kappa[kp]) * temp_mat[kp, i]    
@@ -89,6 +89,9 @@ class Simulation(object):
         computational basis state of the register. Passes additional 
         arguments/keyword arguments straight to the plotting function.
         """
+
+        e_max = max(self.pulse_fn(self.times))
+
         if self.amplitudes is None:
             self.set_amplitudes()
         alpha = self.amplitudes
@@ -101,9 +104,10 @@ class Simulation(object):
             alpha_outs[tdx, i] += np.sqrt(kappa[k]) * alpha[tdx, k, i]
 
         for i in range(ns):
-            sb.plt.plot(alpha_outs[:,i].real, alpha_outs[:,i].imag,
+            sb.plt.plot(alpha_outs[:,i].real / e_max, alpha_outs[:,i].imag / e_max,
                         *args, **kwargs)
         
+        sb.plt.title(r"$ \alpha_{\mathrm{out}}/\epsilon_{\mathrm{max}} $")
         sb.plt.show()
         pass
     
@@ -255,6 +259,15 @@ class Simulation(object):
             np.random.seed(seed)
 
         nq, nm, ns, nt = self.sizes()
+
+
+        self.set_operators()
+
+        rho_is_vec = (len(rho_init.shape) == 1)
+        if rho_is_vec:
+            self.set_lindblad_spr()
+            self.set_lin_meas_spr()
+
         #use function calls to get sizes of output
         if step_fn is not None:
             test_step = step_fn(self.times[0], rho_init.copy(), 0.)
@@ -269,14 +282,6 @@ class Simulation(object):
         else:
             final_results = None
 
-        rho_is_vec = (len(rho_init.shape) == 1)
-        
-        self.set_operators()
-
-        if rho_is_vec:
-            self.set_lindblad_spr()
-            self.set_lin_meas_spr()
-
         dt = self.times[1] - self.times[0] 
 
         for run in xrange(n_runs):
@@ -287,10 +292,16 @@ class Simulation(object):
                 step_results[run, 0, ...] = step_fn(self.times[0], rho, dWs[0])
 
             for tdx in range(1, nt):
+                #'''
                 rho = _platen_15_rho_step(self, tdx, rho, dWs[tdx], 
                                             rho_is_vec=rho_is_vec,
                                             check_herm=check_herm)
-                
+                #'''
+                '''
+                rho = _mod_euler_maruyama_step(self, tdx, rho, dWs[tdx], 
+                                            rho_is_vec=rho_is_vec,
+                                            check_herm=check_herm)
+                '''
                 #callback
                 if step_fn is not None:
                     step_results[run, tdx, ...] = \
@@ -365,6 +376,21 @@ def _platen_15_rho_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
                 - stoc_u_p + stoc_u_m) * I_111 / (2. * dt) 
 
     return rho_c
+
+def _mod_euler_maruyama_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
+                    check_herm=False):
+    
+    if not(rho_is_vec):
+        raise NotImplementedError("rho_is_vec must be True "
+                                    "for _platen_15_step")
+    
+    dt = sim.times[1] - sim.times[0]
+    rho_c = rho.copy() if copy else rho
+    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx,:,:], rho_c) * dW 
+    rho_c = _trapezoid_rho_step(sim, tdx, rho, copy=copy, 
+                                rho_is_vec=rho_is_vec, 
+                                check_herm=check_herm)
+    return rho_c + stoc_v
 
 def _non_lin_meas(lin_meas, rho):
     temp_vec = np.dot(lin_meas, rho)

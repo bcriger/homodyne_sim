@@ -13,7 +13,8 @@ __all__ = ['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat',
             'com_mat', 'diss_mat', 'lin_meas_mat', 'gamma_1_lind', 
             'gamma_2_lind',  'z_ham', 'interquartile_range', 
             'f_d_bin_width', 'fd_bins', 'colour_hist', 'tanh_updown',
-            'tanh_up', 'sigma_x', 'sigma_y', 'cnst_pulse']
+            'tanh_up', 'sigma_x', 'sigma_y', 'cnst_pulse', 
+            'alt_photocurrent']
 
 #cpx = np.complex64
 cpx = np.complex128
@@ -168,12 +169,27 @@ def photocurrent(t, rho, dW, sim):
     translating the time t into an array index (forgive me).
     """
     tdx = np.argmin(np.abs(sim.times - t))
+    dt = sim.times[1] - sim.times[0]
     c = sim.measurement[tdx, :, :]
     if len(rho.shape) == 1:
         rho_c = vec2mat(rho)
     else:
         rho_c = rho
-    return np.trace(np.dot(c + c.conj().transpose(), rho_c)) + dW
+    return np.trace(np.dot(c + c.conj().transpose(), rho_c)) * dt + dW
+
+def alt_photocurrent(t, rho, dW, sim):
+    """
+    Given a simulation object, finds sqrt(\eta) <c + c^+> + dW by 
+    translating the time t into an array index (forgive me).
+    """
+    tdx = np.argmin(np.abs(sim.times - t))
+    dt = sim.times[1] - sim.times[0]
+    c = sim.lin_meas_spr[tdx, :, :]
+    if len(rho.shape) == 2:
+        rho_c = mat2vec(rho)
+    else:
+        rho_c = rho
+    return op_trace(np.dot(c, rho_c)) * dt + dW
 
 def concurrence(rho):
     r"""

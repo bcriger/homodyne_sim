@@ -193,7 +193,7 @@ def _purcell_ops(app):
     """
     op_lst = []
     for k in range(app.nm):
-        op = np.zeros((app.ns, app.ns), dtype=ut.cpx)
+        op = np.zeros((app.ns, app.ns), ut.cpx)
         for l in range(app.nq):
             sigma_m_l = ut.single_op(ut.sigma_m, l, app.nq)
             op += app.purcell[k, l] * sigma_m_l
