@@ -34,11 +34,11 @@ class Simulation(object):
         
         self.pulse_fn = pulse_fn
 
-        self.amplitudes   = None
+        self.amplitudes           = None
         self.coupling_lindbladian = None
-        self.measurement  = None
-        self.lindblad_spr = None
-        self.lin_meas_spr = None
+        self.measurement          = None
+        self.lindblad_spr         = None
+        self.lin_meas_spr         = None
         
     def sizes(self):
         nq, nm = self.apparatus.nq, self.apparatus.nm
@@ -161,7 +161,8 @@ class Simulation(object):
         pass
 
     def set_lindblad_spr(self):
-        self.set_coupling_lindbladian()
+        if self.coupling_lindbladian is None:
+            self.set_coupling_lindbladian()
 
         _, _, ns, nt = self.sizes()
         self.lindblad_spr = np.zeros((nt, ns**2, ns**2), dtype=ut.cpx)
@@ -192,7 +193,9 @@ class Simulation(object):
         calculate the operator trace of the multiplication result, then
         multiply by rho and subtract.
         """
-        self.set_measurement()
+        if self.measurement is None:
+            self.set_measurement()
+    
         _, _, ns, nt = self.sizes()
         self.lin_meas_spr = np.zeros((nt, ns**2, ns**2), dtype=ut.cpx)
         id_mat = np.eye(ns, dtype=ut.cpx)
@@ -260,7 +263,6 @@ class Simulation(object):
 
         nq, nm, ns, nt = self.sizes()
 
-
         self.set_operators()
 
         rho_is_vec = (len(rho_init.shape) == 1)
@@ -292,13 +294,23 @@ class Simulation(object):
                 step_results[run, 0, ...] = step_fn(self.times[0], rho, dWs[0])
 
             for tdx in range(1, nt):
-                # '''
+                '''
                 rho = _platen_15_rho_step(self, tdx, rho, dWs[tdx], 
+                                            rho_is_vec=rho_is_vec,
+                                            check_herm=check_herm)
+                '''
+                # '''
+                rho = _implicit_platen_15_rho_step(self, tdx, rho, dWs[tdx], 
                                             rho_is_vec=rho_is_vec,
                                             check_herm=check_herm)
                 # '''
                 '''
                 rho = _mod_euler_maruyama_step(self, tdx, rho, dWs[tdx], 
+                                            rho_is_vec=rho_is_vec,
+                                            check_herm=check_herm)
+                '''
+                '''
+                rho = _implicit_RK1_step(self, tdx, rho, dWs[tdx], 
                                             rho_is_vec=rho_is_vec,
                                             check_herm=check_herm)
                 '''
@@ -322,10 +334,8 @@ class Simulation(object):
                 pkl.dump(sim_dict, phil)
 
 def _platen_15_rho_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
-                    check_herm=False, semi_implicit=False):
+                    check_herm=False):
     
-    alpha = 0.0 #implicitness parameter
-
     if not(rho_is_vec):
         raise NotImplementedError("rho_is_vec must be True "
                                     "for _platen_15_step")
@@ -363,7 +373,7 @@ def _platen_15_rho_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
     stoc_phi_p = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], phi_p) #stoc_f(t, phi_p)
     stoc_phi_m = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], phi_m) #stoc_f(t, phi_m)
     #Euler term
-    rho_c += (1. - alpha) * det_v * dt if semi_implicit else det_v * dt
+    rho_c += det_v * dt
     rho_c += stoc_v * dW 
     #1/(2 * np.sqrt(dt)) term
     rho_c += ((det_u_p - det_u_m) * I_10 +
@@ -378,14 +388,74 @@ def _platen_15_rho_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
     rho_c += (stoc_phi_p - stoc_phi_m 
                 - stoc_u_p + stoc_u_m) * I_111 / (2. * dt) 
     
-    if semi_implicit:
-        id_mat = np.eye(rho_c.shape[0], dtype=ut.cpx)
-        try:  
-            rho_c = np.linalg.solve(id_mat - alpha * dt * sim.lindblad_spr[tdx + 1, :, :], rho_c)  
-        except IndexError:
-            #Last step fully explicit
-            rho_c = np.linalg.solve(id_mat - alpha * dt * sim.lindblad_spr[tdx, :, :], rho_c)
+    return rho_c
+
+def _implicit_platen_15_rho_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
+                    check_herm=False, semi_implicit=False):
     
+    if not(rho_is_vec):
+        raise NotImplementedError("rho_is_vec must be True "
+                                    "for _implicit_platen_15_step")
+    
+    dt = sim.times[1] - sim.times[0]
+    rho_c = rho.copy() if copy else rho
+
+    #Ito Integrals
+    u_1, u_2 = dW/np.sqrt(dt), np.random.randn()
+    I_10  = 0.5 * dt**1.5 * (u_1 + u_2 / np.sqrt(3.)) 
+    I_01  = dW * dt - I_10 
+    I_11  = 0.5 * (dW**2 - dt) 
+    I_111 = 0.5 * (dW**2 / 3. - dt) * dW 
+    #Evaluations of DE functions
+    det_v  = np.dot(sim.lindblad_spr[tdx, :, :], rho_c) #det_f(t, rho)
+    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c) #stoc_f(t, rho) 
+    #Nasty hack to avoid last timestep error
+    try:
+        stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx + 1, :, :], rho_c) #stoc_f(t + dt, rho)
+    except IndexError:
+        stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c) #stoc_f(t + dt, rho)
+    
+    #Supporting Values
+    u_p = rho_c + det_v * dt + stoc_v * np.sqrt(dt)
+    u_m = rho_c + det_v * dt - stoc_v * np.sqrt(dt)
+    det_u_p = np.dot(sim.lindblad_spr[tdx, :, :], u_p) #det_f(t, u_p)
+    det_u_m = np.dot(sim.lindblad_spr[tdx, : ,:], u_m) #det_f(t, u_m)
+    stoc_u_p = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], u_p) #stoc_f(t, u_p)
+    stoc_u_m = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], u_m) #stoc_f(t, u_m)
+    phi_p = u_p + stoc_u_p * np.sqrt(dt)
+    phi_m = u_p - stoc_u_p * np.sqrt(dt)
+    stoc_phi_p = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], phi_p) #stoc_f(t, phi_p)
+    stoc_phi_m = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], phi_m) #stoc_f(t, phi_m)
+    
+    if check_herm:
+        check_list = ['det_v', 'stoc_v', 'stoc_vp', 'u_p', 'u_m', 
+                        'det_u_p', 'det_u_m', 'stoc_u_p', 'stoc_u_m',
+                        'phi_p', 'phi_m', 'stoc_phi_p', 'stoc_phi_m']
+        for key in check_list:
+            if ut.op_herm_dev(locals()[key]) > 10**-12:
+                raise ValueError("Intermediate value " + 
+                    key + " is not hermitian.")
+
+    #Euler term
+    rho_c += 0.5 * det_v * dt 
+    rho_c += stoc_v * dW 
+    
+    #1/dt term
+    rho_c += dt**-1 * (stoc_vp - stoc_v) * I_01 
+    rho_c += 0.5 * dt**-1 * (stoc_u_p - 2. * stoc_v + stoc_u_m) * I_01
+    rho_c += 0.5 * dt**-1 * (stoc_phi_p - stoc_phi_m - stoc_u_p + stoc_u_m) * I_111
+    
+    #1/sqrt(dt) term
+    rho_c += 0.5 * dt**-0.5 * (det_u_p - det_u_m) * (I_10 - 0.5 * dW * dt)
+    rho_c += 0.5 * dt**-0.5 * (stoc_u_p - stoc_u_m) * I_11  
+
+    id_mat = np.eye(rho_c.shape[0], dtype=ut.cpx)
+    try:  
+        rho_c = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx + 1, :, :], rho_c)  
+    except IndexError:
+        #Last step fully explicit
+        rho_c = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx, :, :], rho_c)
+
     return rho_c
 
 def _mod_euler_maruyama_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
@@ -414,6 +484,44 @@ def _mod_euler_maruyama_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
                                     "column-stacked states.")
 
     return nu_rho
+
+def _implicit_RK1_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
+                    check_herm=False):
+    """
+    Page 407, KP1995
+    """
+    if not(rho_is_vec):
+        raise NotImplementedError("rho_is_vec must be True "
+                                    "for _implicit_RK1_step")
+    
+    dt = sim.times[1] - sim.times[0]
+    rho_c = rho.copy() if copy else rho
+
+    #Ito Integrals
+    I_11  = 0.5 * (dW**2 - dt) 
+    #Evaluations of DE functions
+    det_v  = np.dot(sim.lindblad_spr[tdx, :, :], rho_c) #det_f(t, rho)
+    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c) #stoc_f(t, rho) 
+    
+    #Supporting Values
+    upsilon = rho_c + det_v * dt + stoc_v * np.sqrt(dt)
+    stoc_ups = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], upsilon) #stoc_f(t, upsilon)
+    
+    #Euler term
+    rho_c += 0.5 * det_v * dt 
+    rho_c += stoc_v * dW 
+    
+    #1/sqrt(dt) term
+    rho_c += (dt**-0.5) * (stoc_ups - stoc_v) * I_11  
+
+    id_mat = np.eye(rho_c.shape[0], dtype=ut.cpx)
+    try:  
+        rho_c = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx + 1, :, :], rho_c)  
+    except IndexError:
+        #Last step fully explicit
+        rho_c = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx, :, :], rho_c)
+
+    return rho_c
 
 def _non_lin_meas(lin_meas, rho):
     temp_vec = np.dot(lin_meas, rho)
