@@ -14,7 +14,7 @@ __all__ = ['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat',
             'gamma_2_lind',  'z_ham', 'interquartile_range', 
             'f_d_bin_width', 'fd_bins', 'colour_hist', 'tanh_updown',
             'tanh_up', 'sigma_x', 'sigma_y', 'cnst_pulse', 
-            'alt_photocurrent']
+            'alt_photocurrent', 're_herm']
 
 #cpx = np.complex64
 cpx = np.complex128
@@ -329,6 +329,9 @@ def z_ham(omega, q, nq):
     a = reduce(np.kron, [sigma_z if k == q else id_2
                          for k in range(nq)])
     return omega * com_mat(a)
+
+def re_herm(rho):
+    return 0.5 * (rho + mat2vec(vec2mat(rho).conj().transpose()))
 
 #stackoverflow.com/questions/23228244/
 def interquartile_range(x):

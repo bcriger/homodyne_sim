@@ -294,26 +294,28 @@ class Simulation(object):
                 step_results[run, 0, ...] = step_fn(self.times[0], rho, dWs[0])
 
             for tdx in range(1, nt):
+                # rho = ut.re_herm(rho) #is this necessary?
+                # rho /= ut.op_trace(rho) #is this necessary?
                 '''
                 rho = _platen_15_rho_step(self, tdx, rho, dWs[tdx], 
                                             rho_is_vec=rho_is_vec,
                                             check_herm=check_herm)
                 '''
-                # '''
+                '''
                 rho = _implicit_platen_15_rho_step(self, tdx, rho, dWs[tdx], 
                                             rho_is_vec=rho_is_vec,
                                             check_herm=check_herm)
-                # '''
+                '''
                 '''
                 rho = _mod_euler_maruyama_step(self, tdx, rho, dWs[tdx], 
                                             rho_is_vec=rho_is_vec,
                                             check_herm=check_herm)
                 '''
-                '''
+                # '''
                 rho = _implicit_RK1_step(self, tdx, rho, dWs[tdx], 
                                             rho_is_vec=rho_is_vec,
                                             check_herm=check_herm)
-                '''
+                # '''
                 #callback
                 if step_fn is not None:
                     step_results[run, tdx, ...] = \
