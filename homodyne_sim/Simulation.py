@@ -294,28 +294,39 @@ class Simulation(object):
                 step_results[run, 0, ...] = step_fn(self.times[0], rho, dWs[0])
 
             for tdx in range(1, nt):
-                # rho = ut.re_herm(rho) #is this necessary?
-                # rho /= ut.op_trace(rho) #is this necessary?
+                rho = ut.re_herm(rho) #is this necessary?
+                rho /= ut.op_trace(rho) #is this necessary?
+                dt = self.times[tdx] - self.times[tdx - 1]
                 '''
-                rho = _platen_15_rho_step(self, tdx, rho, dWs[tdx], 
-                                            rho_is_vec=rho_is_vec,
-                                            check_herm=check_herm)
-                '''
-                '''
-                rho = _implicit_platen_15_rho_step(self, tdx, rho, dWs[tdx], 
-                                            rho_is_vec=rho_is_vec,
-                                            check_herm=check_herm)
-                '''
-                '''
-                rho = _mod_euler_maruyama_step(self, tdx, rho, dWs[tdx], 
+                rho = _platen_15_rho_step(self, tdx, rho, dt, dWs[tdx], 
                                             rho_is_vec=rho_is_vec,
                                             check_herm=check_herm)
                 '''
                 # '''
-                rho = _implicit_RK1_step(self, tdx, rho, dWs[tdx], 
+                rho = _implicit_platen_15_rho_step(self, tdx, rho, dt, dWs[tdx], 
                                             rho_is_vec=rho_is_vec,
                                             check_herm=check_herm)
                 # '''
+                '''
+                rho = _mod_euler_maruyama_step(self, tdx, rho, dt, dWs[tdx], 
+                                            rho_is_vec=rho_is_vec,
+                                            check_herm=check_herm)
+                '''
+                '''
+                rho = _implicit_RK1_step(self, tdx, rho, dt, dWs[tdx], 
+                                            rho_is_vec=rho_is_vec,
+                                            check_herm=check_herm)
+                '''
+                '''
+                rho = _implicit_milstein_step(self, tdx, rho, dt, dWs[tdx], 
+                                                rho_is_vec=rho_is_vec,
+                                                check_herm=check_herm)
+                '''
+                '''
+                rho = _milstein_step(self, tdx, rho, dt, dWs[tdx], 
+                                        rho_is_vec=rho_is_vec,
+                                        check_herm=check_herm)
+                '''
                 #callback
                 if step_fn is not None:
                     step_results[run, tdx, ...] = \
@@ -335,14 +346,13 @@ class Simulation(object):
             with open('/'.join([getcwd(),flnm]), 'w') as phil:
                 pkl.dump(sim_dict, phil)
 
-def _platen_15_rho_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
+def _platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
                     check_herm=False):
     
     if not(rho_is_vec):
         raise NotImplementedError("rho_is_vec must be True "
                                     "for _platen_15_step")
     
-    dt = sim.times[1] - sim.times[0]
     rho_c = rho.copy() if copy else rho
 
     #Ito Integrals
@@ -392,14 +402,13 @@ def _platen_15_rho_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
     
     return rho_c
 
-def _implicit_platen_15_rho_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
+def _implicit_platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
                     check_herm=False, semi_implicit=False):
     
     if not(rho_is_vec):
         raise NotImplementedError("rho_is_vec must be True "
                                     "for _implicit_platen_15_step")
     
-    dt = sim.times[1] - sim.times[0]
     rho_c = rho.copy() if copy else rho
 
     #Ito Integrals
@@ -460,10 +469,9 @@ def _implicit_platen_15_rho_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
 
     return rho_c
 
-def _mod_euler_maruyama_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
+def _mod_euler_maruyama_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
                     check_herm=False):
         
-    dt = sim.times[1] - sim.times[0]
     rho_c = rho.copy() if copy else rho
 
     if rho_is_vec:
@@ -487,7 +495,7 @@ def _mod_euler_maruyama_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
 
     return nu_rho
 
-def _implicit_RK1_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
+def _implicit_RK1_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
                     check_herm=False):
     """
     Page 407, KP1995
@@ -496,7 +504,6 @@ def _implicit_RK1_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
         raise NotImplementedError("rho_is_vec must be True "
                                     "for _implicit_RK1_step")
     
-    dt = sim.times[1] - sim.times[0]
     rho_c = rho.copy() if copy else rho
 
     #Ito Integrals
@@ -525,51 +532,103 @@ def _implicit_RK1_step(sim, tdx, rho, dW, copy=True, rho_is_vec=True,
 
     return rho_c
 
-def _non_lin_meas(lin_meas, rho):
-    temp_vec = np.dot(lin_meas, rho)
-    return temp_vec - ut.op_trace(temp_vec) * rho
-
 def _trapezoid_rho_step(sim, tdx, rho, copy=True, rho_is_vec=True,
                         check_herm=False):
     """
     Uses the trapezoid rule for linear ODEs to step rho classically.
     This is only used by classical_sim.
     """
-    dt = sim.times[1] - sim.times[0]
     rho_c = rho.copy() if copy else rho
 
     if rho_is_vec:
-      l_rho = np.dot(sim.lindblad_spr[tdx, :, :], rho_c)
-      if check_herm:
+        l_rho = np.dot(sim.lindblad_spr[tdx, :, :], rho_c)
+        if check_herm:
           if ut.op_herm_dev(l_rho) > 0.1 * dt:
                   raise ValueError("Intermediate value "
                       "l_rho is not hermitian.")
-      #Explicit portion (predictor?)
-      nu_rho = rho_c + 0.5 * l_rho * dt 
-      #Implicit portion (corrector?) 
-      id_mat = np.eye(nu_rho.shape[0], dtype=ut.cpx)
-      try:  
-          nu_rho = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx + 1, :, :], nu_rho)  
-      except IndexError:
-          #Last step fully explicit
-          nu_rho = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx, :, :], nu_rho)
+        #Explicit portion (predictor?)
+        nu_rho = rho_c + 0.5 * l_rho * dt 
+        #Implicit portion (corrector?) 
+        id_mat = np.eye(nu_rho.shape[0], dtype=ut.cpx)
+        try:  
+            nu_rho = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx + 1, :, :], nu_rho)  
+        except IndexError:
+            #Last step fully explicit
+            nu_rho = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx, :, :], nu_rho)
     else:
-      raise NotImplementedError("Trapezoid rule only implemented for "
+        raise NotImplementedError("Trapezoid rule only implemented for "
                                     "column-stacked states.")
 
     return nu_rho
 
-
-
-'''
-def _rk4_stoc_rho_step(sim, tdx, rho, copy=True, rho_is_vec=True,
-                        check_herm=False):
+def  _implicit_milstein_step(sim, tdx, rho, dt, dW, copy=True, 
+                                rho_is_vec=True,
+                                check_herm=False):
     """
-    Uses a 4th-order Runge-Kutta step to calculate the deterministic 
-    contribution to the derivative, and the straightforward 
-    Euler-Maruyama stochastic contribution.
-
-    Note: I can't actually do this.
+    Uses the Milstein update rule figured out analytically in an 
+    accompanying note to see if we can eliminate the 
+    derivative-dependent error in the minimum eigenvalue/purity.
     """
-    pass
-'''
+    if not(rho_is_vec):
+        raise NotImplementedError("Milstein rule only implemented for "
+                                    "column-stacked states.")
+    rho_c = rho.copy() if copy else rho
+
+    I_11 = 0.5 * (dW**2 - dt)
+    det_v = np.dot(sim.lindblad_spr[tdx, :, :], rho_c)
+    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c)
+
+    #Euler Terms
+    rho_c += 0.5 * dt * det_v
+    rho_c += dW * stoc_v
+
+    #Derivative-Dependent Term
+    derv_vec = 2. * ut.mat2vec(sim.measurement[tdx, :, :].real)
+    derv_term = np.dot(sim.lin_meas_spr[tdx, :, :], stoc_v)
+    derv_term -= np.dot(derv_vec, rho_c) * stoc_v 
+    derv_term -= np.dot(derv_vec, stoc_v) * rho_c
+    rho_c += I_11 * derv_term  
+
+    #Implicit Correction
+    id_mat = np.eye(rho_c.shape[0], dtype=ut.cpx)
+    try:  
+        rho_c = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx + 1, :, :], rho_c)  
+    except IndexError:
+        #Last step fully explicit
+        rho_c = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx, :, :], rho_c)
+    
+    return rho_c
+
+def  _milstein_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
+                    check_herm=False):
+    """
+    Uses the Milstein update rule figured out analytically in an 
+    accompanying note to see if we can eliminate the 
+    derivative-dependent error in the minimum eigenvalue/purity.
+    """
+    if not(rho_is_vec):
+        raise NotImplementedError("Milstein rule only implemented for "
+                                    "column-stacked states.")
+    rho_c = rho.copy() if copy else rho
+
+    dt = sim.times[1] - sim.times[0]
+    I_11 = 0.5 * (dW**2 - dt)
+    det_v = np.dot(sim.lindblad_spr[tdx, :, :], rho_c)
+    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c)
+
+    #Euler Terms
+    rho_c += dt * det_v
+    rho_c += dW * stoc_v
+
+    #Derivative-Dependent Term
+    derv_vec = 2. * ut.mat2vec(sim.measurement[tdx, :, :].real)
+    derv_term = np.dot(sim.lin_meas_spr[tdx, :, :], stoc_v)
+    derv_term -= np.dot(derv_vec, rho_c) * stoc_v 
+    derv_term -= np.dot(derv_vec, stoc_v) * rho_c
+    rho_c += I_11 * derv_term  
+
+    return rho_c
+
+def _non_lin_meas(lin_meas, rho):
+    temp_vec = np.dot(lin_meas, rho)
+    return temp_vec - ut.op_trace(temp_vec) * rho

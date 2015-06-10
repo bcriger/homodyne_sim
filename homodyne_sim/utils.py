@@ -14,7 +14,7 @@ __all__ = ['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat',
             'gamma_2_lind',  'z_ham', 'interquartile_range', 
             'f_d_bin_width', 'fd_bins', 'colour_hist', 'tanh_updown',
             'tanh_up', 'sigma_x', 'sigma_y', 'cnst_pulse', 
-            'alt_photocurrent', 're_herm']
+            'alt_photocurrent', 're_herm', 'hat_pulse']
 
 #cpx = np.complex64
 cpx = np.complex128
@@ -29,16 +29,24 @@ matrices are transposed wrt the standard definition.
 
 id_2 = np.eye(2, dtype=cpx)
 
+#Computational Convention
 # sigma_m = np.array([[0., 1.], [
-#                      0., 0.]], dtype=cpx)
+                     # 0., 0.]], dtype=cpx)
+
+#Physical Convention
 sigma_m = np.array([[0., 0.], [
                      1., 0.]], dtype=cpx)
 
 sigma_x = np.array([[0., 1.], [
                      1., 0.]], dtype=cpx)
 
+#Physical Convention
 sigma_y = np.array([[ 0.,  1j], [
                      -1j,  0.]], dtype=cpx)
+
+#Computational Convention
+# sigma_y = np.array([[ 0.,  -1j], [
+#                      1j,  0.]], dtype=cpx)
 
 sigma_z = np.array([[1.,  0.], [
                      0., -1.]], dtype=cpx)
@@ -62,7 +70,9 @@ def state2vec(lil_vec):
 def single_op(mat, q, nq):
     return reduce(np.kron, [mat if l==q else id_2 for l in range(nq)])
 
-cnst_pulse = lambda t, cnst: cnst
+cnst_pulse = np.vectorize(lambda t, cnst: cnst)
+
+hat_pulse = np.vectorize(lambda t, cnst, t_on, t_off: cnst if t_on < t < t_off else 0.)
 
 def arctan_updown(t, e_ss, sigma, t_on, t_off):
     
