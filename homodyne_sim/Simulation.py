@@ -52,14 +52,14 @@ class Simulation(object):
         states in cavity modes.
         """
         nq, nm, ns, nt = self.sizes()
-
+        kappa = self.apparatus.kappa
+        delta = self.apparatus.delta
+        chi = self.apparatus.chi
+            
         #Use attributes of self.apparatus to determine d_alpha_dt
         def _d_alpha_dt(alpha, t):
             
             temp_mat = alpha.reshape((nm, ns))
-            kappa = self.apparatus.kappa
-            delta = self.apparatus.delta
-            chi = self.apparatus.chi
             alpha_dot = np.zeros(temp_mat.shape, temp_mat.dtype)
             
             for k, i in product(range(nm), range(ns)):
@@ -75,12 +75,26 @@ class Simulation(object):
                 
                 #damping term
                 for kp in range(nm):
-                    alpha_dot[k, i] -= 0.5 * np.sqrt(kappa[k] * kappa[kp]) * temp_mat[kp, i]    
+                    alpha_dot[k, i] -= 0.5 * np.sqrt(kappa[k] * kappa[kp]) * temp_mat[kp, i]
             
             return alpha_dot.reshape(alpha.shape)
-
+        
+        def jacobian(alpha, t):
+            jac_mat = np.zeros((nm * ns, nm * ns), dtype=ut.cpx)
+            #only add to elements where i = i'
+            for k, i in product(range(nm), range(ns)):
+                rdx = ns * k + i 
+                jac_mat[rdx, rdx] = -1j * (delta[k] + sum([ ut.bt_sn(i, j, nq) * chi[k, j] for j in range(nq)]))
+                for kp in range(nm):
+                    cdx = ns * kp + i
+                    jac_mat[rdx, cdx] -= 0.5 * np.sqrt(kappa[k] * kappa[kp]) * alpha[cdx]
+            
+            return jac_mat
+        
         alpha_0 = np.zeros((nm * ns,), dtype=ut.cpx)
-        self.amplitudes = odeintw(_d_alpha_dt, alpha_0, self.times).reshape((nt, nm, ns))
+        
+        # self.amplitudes = odeintw(_d_alpha_dt, alpha_0, self.times).reshape((nt, nm, ns))
+        self.amplitudes = odeintw(_d_alpha_dt, alpha_0, self.times, Dfun=jacobian).reshape((nt, nm, ns))
     
     def butterfly_plot(self, *args, **kwargs):
         """
@@ -227,7 +241,6 @@ class Simulation(object):
         else:
             raise ValueError("Vectorize initial rho!")
 
-        dt = self.times[1] - self.times[0]
         rho = np.copy(rho_init)
         if step_fn is not None:
             #Use t=0 result of step_fn to set size of returned array
@@ -238,6 +251,7 @@ class Simulation(object):
             step_result = None
         
         for tdx in range(1, nt):
+            dt = self.times[tdx] - self.times[tdx-1]
             rho = _trapezoid_rho_step(self, tdx, rho, dt, 
                                     rho_is_vec=rho_is_vec,
                                     check_herm=check_herm)
@@ -288,14 +302,15 @@ class Simulation(object):
             rho = np.copy(rho_init)
             dWs = np.random.randn(nt)
             
-            if step_fn is not None:
-                step_results[run, 0, ...] = step_fn(self.times[0], rho, dWs[0])
-
-            for tdx in range(1, nt):
+            for tdx in range(nt - 1):
                 rho = ut.re_herm(rho) #is this necessary?
                 rho /= ut.op_trace(rho) #is this necessary?
-                dt = self.times[tdx] - self.times[tdx - 1]
+                dt = self.times[tdx + 1] - self.times[tdx]
                 dWs[tdx] *= np.sqrt(dt)
+                #callback
+                if step_fn is not None:
+                    step_results[run, tdx, ...] = \
+                        step_fn(self.times[tdx], rho.copy(), dWs[tdx])
                 '''
                 rho = _platen_15_rho_step(self, tdx, rho, dt, dWs[tdx], 
                                             rho_is_vec=rho_is_vec,
@@ -326,10 +341,10 @@ class Simulation(object):
                                         rho_is_vec=rho_is_vec,
                                         check_herm=check_herm)
                 '''
-                #callback
-                if step_fn is not None:
-                    step_results[run, tdx, ...] = \
-                        step_fn(self.times[tdx], rho.copy(), dWs[tdx])
+            #callback
+            if step_fn is not None:
+                step_results[run, -1, ...] = \
+                    step_fn(self.times[-1], rho.copy(), np.sqrt(dt) * dWs[-1])    
             
             if final_fn is not None:
                 final_results[run, ...] = final_fn(rho.copy())
