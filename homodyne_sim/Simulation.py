@@ -238,7 +238,7 @@ class Simulation(object):
             step_result = None
         
         for tdx in range(1, nt):
-            rho = _trapezoid_rho_step(self, tdx, rho, 
+            rho = _trapezoid_rho_step(self, tdx, rho, dt, 
                                     rho_is_vec=rho_is_vec,
                                     check_herm=check_herm)
             #callback
@@ -284,11 +284,9 @@ class Simulation(object):
         else:
             final_results = None
 
-        dt = self.times[1] - self.times[0] 
-
         for run in xrange(n_runs):
             rho = np.copy(rho_init)
-            dWs = np.sqrt(dt) * np.random.randn(nt)
+            dWs = np.random.randn(nt)
             
             if step_fn is not None:
                 step_results[run, 0, ...] = step_fn(self.times[0], rho, dWs[0])
@@ -297,6 +295,7 @@ class Simulation(object):
                 rho = ut.re_herm(rho) #is this necessary?
                 rho /= ut.op_trace(rho) #is this necessary?
                 dt = self.times[tdx] - self.times[tdx - 1]
+                dWs[tdx] *= np.sqrt(dt)
                 '''
                 rho = _platen_15_rho_step(self, tdx, rho, dt, dWs[tdx], 
                                             rho_is_vec=rho_is_vec,
@@ -532,7 +531,7 @@ def _implicit_RK1_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
 
     return rho_c
 
-def _trapezoid_rho_step(sim, tdx, rho, copy=True, rho_is_vec=True,
+def _trapezoid_rho_step(sim, tdx, rho, dt, copy=True, rho_is_vec=True,
                         check_herm=False):
     """
     Uses the trapezoid rule for linear ODEs to step rho classically.
