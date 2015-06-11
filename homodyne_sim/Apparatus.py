@@ -1,6 +1,7 @@
 import numpy as np
 import itertools as it
 import utils as ut
+from scipy.signal import lti
 
 __all__ = ['Apparatus', '_drift_h', '_jump_op_lst', 
             '_qubit_damping_ops', '_qubit_dephasing_ops', 
@@ -94,6 +95,13 @@ class Apparatus(object):
         self.drift_hamiltonian = _drift_h(self)
         self.jump_ops = _jump_op_lst(self)
 
+    #convenience methods
+    def sizes(self):
+        return self.nq, self.nm, self.ns
+
+    def cav_params(self):
+        return self.delta, self.kappa, self.chi
+
     @property
     def omega(self):
         return self._omega
@@ -147,6 +155,35 @@ class Apparatus(object):
     def purcell(self, new_val):
         self._purcell = new_val
         self.jump_ops = _jump_op_lst(self)
+
+    def cavity_lti(self):
+        nq, nm, ns = self.sizes()
+        delta, kappa, chi = self.cav_params()
+
+        vec_l = nm * ns
+        A = np.zeros((vec_l, vec_l), dtype=ut.cpx)
+        B = np.zeros((vec_l, 1), dtype=ut.cpx)
+        C = np.eye(vec_l, dtype=ut.cpx)
+        D = np.zeros((vec_l, 1), dtype=ut.cpx)
+        #A gets a damping term wherever i = i'
+        
+        for i in range(ns):
+            for k, kp in it.product(range(nm), repeat=2):
+                rdx = ns * k + i
+                cdx = ns * kp + i
+                A[rdx, cdx] -= np.sqrt(kappa[k] * kappa[kp])
+                #The height of sloth
+                if k == kp:
+                    rot_term = -1j * delta[k]
+                    rot_term -= 1j * sum([ ut.bt_sn(i, l, nq) * chi[k, l]
+                                             for l in range(nq) ])
+                    A[rdx, cdx] += rot_term
+        
+        for k, i in it.product(range(nm), range(ns)):
+            idx = ns * k + i
+            B[idx] = -1j * np.sqrt(kappa[k])
+
+        return lti(A, B, C, D)
 
 def _drift_h(app):
     """

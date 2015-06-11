@@ -417,7 +417,7 @@ def _platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
     return rho_c
 
 def _implicit_platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
-                    check_herm=False, semi_implicit=False):
+                    check_herm=False):
     
     if not(rho_is_vec):
         raise NotImplementedError("rho_is_vec must be True "
@@ -472,6 +472,7 @@ def _implicit_platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=Tr
     
     #1/sqrt(dt) term
     rho_c += 0.5 * dt**-0.5 * (det_u_p - det_u_m) * (I_10 - 0.5 * dW * dt)
+    # rho_c += 0.5 * dt**-0.5 * (det_u_p - det_u_m) * (I_10 - dW * dt) #WILD GUESS
     rho_c += 0.5 * dt**-0.5 * (stoc_u_p - stoc_u_m) * I_11  
 
     id_mat = np.eye(rho_c.shape[0], dtype=ut.cpx)
@@ -646,3 +647,33 @@ def  _milstein_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
 def _non_lin_meas(lin_meas, rho):
     temp_vec = np.dot(lin_meas, rho)
     return temp_vec - ut.op_trace(temp_vec) * rho
+
+def _d_alpha_dt(alpha, t, sim):
+    """
+    See the note entitled "Coherent State Equations of Motion"
+    """
+    #Book-keeping            
+    nq, nm, ns, nt = sim.sizes()
+    delta = sim.apparatus.delta
+    kappa = sim.apparatus.kappa
+    chi = sim.apparatus.chi
+
+    temp_mat = alpha.reshape((nm, ns))
+    alpha_dot = np.zeros(temp_mat.shape, temp_mat.dtype)
+    
+    for k, i in product(range(nm), range(ns)):
+        #drift term
+        alpha_dot[k, i] = -1j * delta[k] * temp_mat[k, i]
+        #qubit coupling term
+        alpha_dot[k, i] += -1j * (sum([ut.bt_sn(i, l, nq) * chi[k, l]
+                                       for l in range(nq)])
+                                        * temp_mat[k, i])
+        #driving term
+        alpha_dot[k, i] += -1j * (np.sqrt(kappa[k]) *
+                                     self.pulse_fn(t)) 
+        
+        #damping term
+        for kp in range(nm):
+            alpha_dot[k, i] -= 0.5 * np.sqrt(kappa[k] * kappa[kp]) * temp_mat[kp, i]
+
+    return alpha_dot.reshape(alpha.shape)
