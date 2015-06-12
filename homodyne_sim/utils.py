@@ -14,10 +14,11 @@ __all__ = ['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat',
             'gamma_2_lind',  'z_ham', 'interquartile_range', 
             'f_d_bin_width', 'fd_bins', 'colour_hist', 'tanh_updown',
             'tanh_up', 'sigma_x', 'sigma_y', 'cnst_pulse', 
-            'alt_photocurrent', 're_herm', 'hat_pulse']
+            'alt_photocurrent', 're_herm', 'hat_pulse', 'flt']
 
 #cpx = np.complex64
 cpx = np.complex128
+flt = np.float64
 # cpx = np.complex256 #UNSUPPORTED IN LINALG
 
 """

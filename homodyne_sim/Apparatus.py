@@ -157,9 +157,43 @@ class Apparatus(object):
         self.jump_ops = _jump_op_lst(self)
 
     def cavity_lti(self):
+        """
+        Produces a set of matrices (A, B, C, D) which are familiar
+        to people who use scipy.signal.lti. They have all real entries,
+        so they're twice as large as the corresponding complex matrices.
+        """
         nq, nm, ns = self.sizes()
         delta, kappa, chi = self.cav_params()
+        
+        vec_l = 2 * nm * ns
+        A = np.zeros((vec_l, vec_l), dtype=ut.flt)
+        B = np.zeros((vec_l, 1), dtype=ut.flt)
+        C = np.eye(vec_l, dtype=ut.flt)
+        D = np.zeros((vec_l, 1), dtype=ut.flt)
+        #A gets a damping term wherever i = i'
+        
+        for i in range(ns):
+            for k, kp in it.product(range(nm), repeat=2):
+                rdx = ns * k + i
+                cdx = ns * kp + i
 
+                dmp_term = -0.5 * np.sqrt(kappa[k] * kappa[kp]).real
+                rot_term = delta[k] + sum([ ut.bt_sn(i, l, nq) * chi[k, l]
+                                            for l in range(nq) ])
+                rot_term = rot_term.real
+                A[2 * rdx,     2 * cdx]     += dmp_term 
+                A[2 * rdx + 1, 2 * cdx + 1] += dmp_term
+                #The height of sloth
+                if k == kp:
+                    A[2 * rdx, 2 * cdx + 1] += rot_term
+                    A[2 * rdx + 1, 2 * cdx] -= rot_term
+        
+        for k, i in it.product(range(nm), range(ns)):
+            idx = ns * k + i
+            B[2 * idx + 1] = -np.sqrt(kappa[k]).real
+
+        #Corresponding matrices for complex case
+        """
         vec_l = nm * ns
         A = np.zeros((vec_l, vec_l), dtype=ut.cpx)
         B = np.zeros((vec_l, 1), dtype=ut.cpx)
@@ -171,7 +205,7 @@ class Apparatus(object):
             for k, kp in it.product(range(nm), repeat=2):
                 rdx = ns * k + i
                 cdx = ns * kp + i
-                A[rdx, cdx] -= np.sqrt(kappa[k] * kappa[kp])
+                A[rdx, cdx] -= 0.5 * np.sqrt(kappa[k] * kappa[kp])
                 #The height of sloth
                 if k == kp:
                     rot_term = -1j * delta[k]
@@ -182,8 +216,8 @@ class Apparatus(object):
         for k, i in it.product(range(nm), range(ns)):
             idx = ns * k + i
             B[idx] = -1j * np.sqrt(kappa[k])
-
-        return lti(A, B, C, D)
+        """
+        return A, B, C, D
 
 def _drift_h(app):
     """

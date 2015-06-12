@@ -4,7 +4,7 @@ from scipy.integrate import ode
 from Apparatus import Apparatus
 from types import FunctionType
 from odeintw import odeintw
-from scipy.integrate import odeint
+from scipy.integrate import odeint, ode
 from itertools import product
 import seaborn as sb
 import cPickle as pkl
@@ -46,56 +46,43 @@ class Simulation(object):
         nt = len(self.times)
         return nq, nm, ns, nt
 
-    def set_amplitudes(self):
+    def set_amplitudes(self, integrator='zvode'):
         """
         Formulates and solves deterministic DEs governing coherent 
         states in cavity modes.
         """
-        nq, nm, ns, nt = self.sizes()
-        kappa = self.apparatus.kappa
-        delta = self.apparatus.delta
-        chi = self.apparatus.chi
-            
-        #Use attributes of self.apparatus to determine d_alpha_dt
-        def _d_alpha_dt(alpha, t):
-            
-            temp_mat = alpha.reshape((nm, ns))
-            alpha_dot = np.zeros(temp_mat.shape, temp_mat.dtype)
-            
-            for k, i in product(range(nm), range(ns)):
-                #drift term
-                alpha_dot[k, i] = -1j * delta[k] * temp_mat[k, i]
-                #qubit coupling term
-                alpha_dot[k, i] += -1j * (sum([ut.bt_sn(i, l, nq) * chi[k, l]
-                                               for l in range(nq)])
-                                                * temp_mat[k, i])
-                #driving term
-                alpha_dot[k, i] += -1j * (np.sqrt(kappa[k]) *
-                                             self.pulse_fn(t)) 
-                
-                #damping term
-                for kp in range(nm):
-                    alpha_dot[k, i] -= 0.5 * np.sqrt(kappa[k] * kappa[kp]) * temp_mat[kp, i]
-            
-            return alpha_dot.reshape(alpha.shape)
+        #Sanitize
+        integrator = integrator.lower()
+        integrator_list = ['zvode', 'odeint']
+        if integrator not in integrator_list:
+            raise ValueError("Integrator must be one of "
+                "{}".format(integrator_list))
         
-        def jacobian(alpha, t):
-            jac_mat = np.zeros((nm * ns, nm * ns), dtype=ut.cpx)
-            #only add to elements where i = i'
-            for k, i in product(range(nm), range(ns)):
-                rdx = ns * k + i 
-                jac_mat[rdx, rdx] = -1j * (delta[k] + sum([ ut.bt_sn(i, j, nq) * chi[k, j] for j in range(nq)]))
-                for kp in range(nm):
-                    cdx = ns * kp + i
-                    jac_mat[rdx, cdx] -= 0.5 * np.sqrt(kappa[k] * kappa[kp]) * alpha[cdx]
-            
-            return jac_mat
+        _, nm, ns, nt = self.sizes()
+           
+        if integrator == 'odeint':
+            alpha_dot = lambda alpha, t: _d_alpha_dt(alpha, t, self)
+            jacobian = lambda alpha, t: _alpha_jacobian(alpha, t, self)
+        elif integrator == 'zvode':
+            alpha_dot = lambda t, alpha: _d_alpha_dt(alpha, t, self)
+            jacobian = lambda t, alpha: _alpha_jacobian(alpha, t, self)
         
         alpha_0 = np.zeros((nm * ns,), dtype=ut.cpx)
         
-        # self.amplitudes = odeintw(_d_alpha_dt, alpha_0, self.times).reshape((nt, nm, ns))
-        self.amplitudes = odeintw(_d_alpha_dt, alpha_0, self.times, Dfun=jacobian).reshape((nt, nm, ns))
-    
+        # self.amplitudes = odeintw(alpha_dot, alpha_0, self.times).reshape((nt, nm, ns))
+        if integrator == 'odeint':
+            self.amplitudes = odeintw(alpha_dot, alpha_0, self.times, Dfun=jacobian).reshape((nt, nm, ns))
+        elif integrator == 'zvode':
+            stepper = ode(alpha_dot, jacobian).set_integrator('zvode', method='bdf')
+            stepper.set_initial_value(alpha_0, self.times[0])
+            self.amplitudes = np.empty((nt, nm * ns, nm * ns), dtype=ut.cpx)
+            self.amplitudes[0, :, :] = alpha_0
+            for tdx in range(1, len(self.times)):
+                if stepper.successful():
+                    stepper.integrate(self.times[tdx])
+                    self.amplitudes[tdx, :, :] = stepper.y
+
+
     def butterfly_plot(self, *args, **kwargs):
         """
         plots the `alpha_out`s corresponding to the conditional 
@@ -670,10 +657,28 @@ def _d_alpha_dt(alpha, t, sim):
                                         * temp_mat[k, i])
         #driving term
         alpha_dot[k, i] += -1j * (np.sqrt(kappa[k]) *
-                                     self.pulse_fn(t)) 
+                                     sim.pulse_fn(t)) 
         
         #damping term
         for kp in range(nm):
             alpha_dot[k, i] -= 0.5 * np.sqrt(kappa[k] * kappa[kp]) * temp_mat[kp, i]
 
     return alpha_dot.reshape(alpha.shape)
+
+def _alpha_jacobian(alpha, t, sim):
+    #Book-keeping            
+    nq, nm, ns, nt = sim.sizes()
+    delta = sim.apparatus.delta
+    kappa = sim.apparatus.kappa
+    chi = sim.apparatus.chi
+    
+    jac_mat = np.zeros((nm * ns, nm * ns), dtype=ut.cpx)
+    #only add to elements where i = i'
+    for k, i in product(range(nm), range(ns)):
+        rdx = ns * k + i 
+        jac_mat[rdx, rdx] = -1j * (delta[k] + sum([ ut.bt_sn(i, j, nq) * chi[k, j] for j in range(nq)]))
+        for kp in range(nm):
+            cdx = ns * kp + i
+            jac_mat[rdx, cdx] -= 0.5 * np.sqrt(kappa[k] * kappa[kp]) * alpha[cdx]
+    
+    return jac_mat
