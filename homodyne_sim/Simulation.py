@@ -5,12 +5,13 @@ from Apparatus import Apparatus
 from types import FunctionType
 from odeintw import odeintw
 from scipy.integrate import odeint, ode
-from scipy.signal import fftconvolve
+from scipy.signal import fftconvolve as convolve
 from scipy.linalg import expm
 from itertools import product
 import seaborn as sb
 import cPickle as pkl
 from os import getcwd
+from math import fsum
 #import progressbar as pb #some day . . .
 import utils as ut
 
@@ -78,29 +79,36 @@ class Simulation(object):
         
         elif integrator == 'zvode':
         
-            stepper = ode(alpha_dot, jacobian).set_integrator('zvode', method='bdf')
+            # stepper = ode(alpha_dot, jacobian).set_integrator('zvode', method='bdf', atol=10**-12, rtol=0.)
+            stepper = ode(alpha_dot, jacobian).set_integrator('zvode', atol=10**-14, rtol=10.**-14)
             stepper.set_initial_value(alpha_0, self.times[0])
             self.amplitudes = np.empty((nt, nm, ns), dtype=ut.cpx)
-            self.amplitudes[0, :, :] = alpha_0
+            self.amplitudes[0, :, :] = alpha_0.reshape((nm,ns))
             for tdx in range(1, len(self.times)):
                 if stepper.successful():
                     stepper.integrate(self.times[tdx])
-                    self.amplitudes[tdx, :, :] = stepper.y
+                    self.amplitudes[tdx, :, :] = stepper.y.reshape((nm,ns))
         
         elif integrator == 'convolution':
         
             self.amplitudes = np.empty((nt, nm, ns), dtype=ut.cpx)
             dt = self.times[1] #Won't work for non-uniform time step
-            A, B, _, _ = self.apparatus.cavity_lti()
-            u_t = np.zeros((nt,), ut.flt)
-            expm_At_B = np.zeros((nt,) + B.shape, ut.flt)
+            u_t = np.empty((nt,), ut.flt)
             for tdx, t in enumerate(self.times):
                 u_t[tdx] = self.pulse_fn(t)
-                expm_At_B[tdx, :] = np.dot(expm(A * t), B)
-            for k, i in product(range(nm), range(ns)):
-                big_idx = ns * k + i
-                self.amplitudes[:, k, i] = np.convolve(expm_At_B[:, 2 * big_idx].flatten(), u_t * dt)[:len(self.times)]
-                self.amplitudes[:, k, i] += 1j * np.convolve(expm_At_B[:, 2 * big_idx + 1].flatten(), u_t * dt)[:len(self.times)]
+
+            #Use blocks of state-space matrices for improved accuracy
+            for i in range(ns):
+                A, B, _, _ = self.apparatus.cavity_lti(reg_idx=i)
+                expm_At_B = np.empty((nt,) + B.shape, ut.flt)
+                for tdx, t in enumerate(self.times):
+                    u_t[tdx] = self.pulse_fn(t)
+                    expm_At_B[tdx, :] = np.dot(expm(A * t), B)
+                for k in range(nm):
+                    re_pt = expm_At_B[:, 2 * k].flatten()
+                    im_pt = expm_At_B[:, 2 * k + 1].flatten()
+                    self.amplitudes[:, k, i] = convolve(re_pt, u_t * dt)[:nt]
+                    self.amplitudes[:, k, i] += 1j * convolve(im_pt, u_t * dt)[:nt]
                 
 
     def butterfly_plot(self, *args, **kwargs):
@@ -702,3 +710,20 @@ def _alpha_jacobian(alpha, t, sim):
             jac_mat[rdx, cdx] -= 0.5 * np.sqrt(kappa[k] * kappa[kp]) * alpha[cdx]
     
     return jac_mat
+
+def _convolve(arr_1, arr_2):
+    """
+    Uses Kahan summation to obtain a more accurate discrete 
+    conovlution of two arrays.
+    """
+    if len(arr_2) > len(arr_1):
+        arr_1, arr_2 = arr_2, arr_1
+
+    return np.array([
+                    fsum(
+                        [
+                            arr_1[m] * arr_2[n - m] 
+                            if (n >= m and (n-m < len(arr_2))) else 0. 
+                            for m in range(len(arr_1))
+                        ])
+                for n in range(len(arr_1) + len(arr_2) + 1)])

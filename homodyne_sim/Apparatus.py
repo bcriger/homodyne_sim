@@ -167,8 +167,6 @@ class Apparatus(object):
         if sys_type not in sys_t_lst:
             raise ValueError("sys_type is not in {}".format(sys_t_lst))
 
-
-
         nq, nm, ns = self.sizes()
         delta, kappa, chi = self.cav_params()
         if reg_idx is None:
