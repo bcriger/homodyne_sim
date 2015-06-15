@@ -5,6 +5,8 @@ from Apparatus import Apparatus
 from types import FunctionType
 from odeintw import odeintw
 from scipy.integrate import odeint, ode
+from scipy.signal import fftconvolve
+from scipy.linalg import expm
 from itertools import product
 import seaborn as sb
 import cPickle as pkl
@@ -53,7 +55,7 @@ class Simulation(object):
         """
         #Sanitize
         integrator = integrator.lower()
-        integrator_list = ['zvode', 'odeint']
+        integrator_list = ['zvode', 'odeint', 'convolution']
         if integrator not in integrator_list:
             raise ValueError("Integrator must be one of "
                 "{}".format(integrator_list))
@@ -71,17 +73,35 @@ class Simulation(object):
         
         # self.amplitudes = odeintw(alpha_dot, alpha_0, self.times).reshape((nt, nm, ns))
         if integrator == 'odeint':
+            
             self.amplitudes = odeintw(alpha_dot, alpha_0, self.times, Dfun=jacobian).reshape((nt, nm, ns))
+        
         elif integrator == 'zvode':
+        
             stepper = ode(alpha_dot, jacobian).set_integrator('zvode', method='bdf')
             stepper.set_initial_value(alpha_0, self.times[0])
-            self.amplitudes = np.empty((nt, nm * ns, nm * ns), dtype=ut.cpx)
+            self.amplitudes = np.empty((nt, nm, ns), dtype=ut.cpx)
             self.amplitudes[0, :, :] = alpha_0
             for tdx in range(1, len(self.times)):
                 if stepper.successful():
                     stepper.integrate(self.times[tdx])
                     self.amplitudes[tdx, :, :] = stepper.y
-
+        
+        elif integrator == 'convolution':
+        
+            self.amplitudes = np.empty((nt, nm, ns), dtype=ut.cpx)
+            dt = self.times[1] #Won't work for non-uniform time step
+            A, B, _, _ = self.apparatus.cavity_lti()
+            u_t = np.zeros((nt,), ut.flt)
+            expm_At_B = np.zeros((nt,) + B.shape, ut.flt)
+            for tdx, t in enumerate(self.times):
+                u_t[tdx] = self.pulse_fn(t)
+                expm_At_B[tdx, :] = np.dot(expm(A * t), B)
+            for k, i in product(range(nm), range(ns)):
+                big_idx = ns * k + i
+                self.amplitudes[:, k, i] = np.convolve(expm_At_B[:, 2 * big_idx].flatten(), u_t * dt)[:len(self.times)]
+                self.amplitudes[:, k, i] += 1j * np.convolve(expm_At_B[:, 2 * big_idx + 1].flatten(), u_t * dt)[:len(self.times)]
+                
 
     def butterfly_plot(self, *args, **kwargs):
         """

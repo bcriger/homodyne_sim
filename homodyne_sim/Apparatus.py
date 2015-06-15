@@ -156,68 +156,89 @@ class Apparatus(object):
         self._purcell = new_val
         self.jump_ops = _jump_op_lst(self)
 
-    def cavity_lti(self):
+    def cavity_lti(self, sys_type='real', reg_idx=None):
         """
         Produces a set of matrices (A, B, C, D) which are familiar
         to people who use scipy.signal.lti. They have all real entries,
         so they're twice as large as the corresponding complex matrices.
         """
+        sys_type = sys_type.lower()
+        sys_t_lst = ['real', 'complex']
+        if sys_type not in sys_t_lst:
+            raise ValueError("sys_type is not in {}".format(sys_t_lst))
+
+
+
         nq, nm, ns = self.sizes()
         delta, kappa, chi = self.cav_params()
-        
-        vec_l = 2 * nm * ns
-        A = np.zeros((vec_l, vec_l), dtype=ut.flt)
-        B = np.zeros((vec_l, 1), dtype=ut.flt)
-        C = np.eye(vec_l, dtype=ut.flt)
-        D = np.zeros((vec_l, 1), dtype=ut.flt)
-        #A gets a damping term wherever i = i'
-        
-        for i in range(ns):
-            for k, kp in it.product(range(nm), repeat=2):
-                rdx = ns * k + i
-                cdx = ns * kp + i
+        if reg_idx is None:
+            if sys_type == 'real':
+                vec_l = 2 * nm * ns
+                A = np.zeros((vec_l, vec_l), dtype=ut.flt)
+                B = np.zeros((vec_l, 1), dtype=ut.flt)
+                C = np.eye(vec_l, dtype=ut.flt)
+                D = np.zeros((vec_l, 1), dtype=ut.flt)
+                #A gets a damping term wherever i = i'
+                
+                for i in range(ns):
+                    for k, kp in it.product(range(nm), repeat=2):
+                        rdx = ns * k + i
+                        cdx = ns * kp + i
 
-                dmp_term = -0.5 * np.sqrt(kappa[k] * kappa[kp]).real
-                rot_term = delta[k] + sum([ ut.bt_sn(i, l, nq) * chi[k, l]
-                                            for l in range(nq) ])
-                rot_term = rot_term.real
-                A[2 * rdx,     2 * cdx]     += dmp_term 
-                A[2 * rdx + 1, 2 * cdx + 1] += dmp_term
-                #The height of sloth
-                if k == kp:
-                    A[2 * rdx, 2 * cdx + 1] += rot_term
-                    A[2 * rdx + 1, 2 * cdx] -= rot_term
-        
-        for k, i in it.product(range(nm), range(ns)):
-            idx = ns * k + i
-            B[2 * idx + 1] = -np.sqrt(kappa[k]).real
+                        dmp_term = -0.5 * np.sqrt(kappa[k] * kappa[kp]).real
+                        rot_term = delta[k] + sum([ ut.bt_sn(i, l, nq) * chi[k, l]
+                                                    for l in range(nq) ])
+                        rot_term = rot_term.real
+                        A[2 * rdx,     2 * cdx]     += dmp_term 
+                        A[2 * rdx + 1, 2 * cdx + 1] += dmp_term
+                        #The height of sloth
+                        if k == kp:
+                            A[2 * rdx, 2 * cdx + 1] += rot_term
+                            A[2 * rdx + 1, 2 * cdx] -= rot_term
+                
+                for k, i in it.product(range(nm), range(ns)):
+                    idx = ns * k + i
+                    B[2 * idx + 1] = -np.sqrt(kappa[k]).real
+            
+            elif sys_type == 'complex':
+                vec_l = nm * ns
+                A = np.zeros((vec_l, vec_l), dtype=ut.cpx)
+                B = np.zeros((vec_l, 1), dtype=ut.cpx)
+                C = np.eye(vec_l, dtype=ut.cpx)
+                D = np.zeros((vec_l, 1), dtype=ut.cpx)
+                #A gets a damping term wherever i = i'
+                
+                for i in range(ns):
+                    for k, kp in it.product(range(nm), repeat=2):
+                        rdx = ns * k + i
+                        cdx = ns * kp + i
+                        A[rdx, cdx] -= 0.5 * np.sqrt(kappa[k] * kappa[kp])
+                        #The height of sloth
+                        if k == kp:
+                            rot_term = -1j * delta[k]
+                            rot_term -= 1j * sum([ ut.bt_sn(i, l, nq) * chi[k, l]
+                                                     for l in range(nq) ])
+                            A[rdx, cdx] += rot_term
+                
+                for k, i in it.product(range(nm), range(ns)):
+                    idx = ns * k + i
+                    B[idx] = -1j * np.sqrt(kappa[k])
+        else:
+            raise NotImplementedError("Fixing register index not "
+                                        "yet supported.")
 
-        #Corresponding matrices for complex case
-        """
-        vec_l = nm * ns
-        A = np.zeros((vec_l, vec_l), dtype=ut.cpx)
-        B = np.zeros((vec_l, 1), dtype=ut.cpx)
-        C = np.eye(vec_l, dtype=ut.cpx)
-        D = np.zeros((vec_l, 1), dtype=ut.cpx)
-        #A gets a damping term wherever i = i'
-        
-        for i in range(ns):
-            for k, kp in it.product(range(nm), repeat=2):
-                rdx = ns * k + i
-                cdx = ns * kp + i
-                A[rdx, cdx] -= 0.5 * np.sqrt(kappa[k] * kappa[kp])
-                #The height of sloth
-                if k == kp:
-                    rot_term = -1j * delta[k]
-                    rot_term -= 1j * sum([ ut.bt_sn(i, l, nq) * chi[k, l]
-                                             for l in range(nq) ])
-                    A[rdx, cdx] += rot_term
-        
-        for k, i in it.product(range(nm), range(ns)):
-            idx = ns * k + i
-            B[idx] = -1j * np.sqrt(kappa[k])
-        """
         return A, B, C, D
+    
+    def steady_states(self, e_ss):
+        """
+        Returns an array of cavity mode amplitudes corresponding to the
+        steady states under a constant driving function. As usual, a
+        two-dimensional array is used, with the zeroth index 
+        representing the cavity mode, and the first representing the 
+        register value. 
+        """
+
+        pass
 
 def _drift_h(app):
     """
