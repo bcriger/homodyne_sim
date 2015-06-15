@@ -224,12 +224,59 @@ class Apparatus(object):
                     idx = ns * k + i
                     B[idx] = -1j * np.sqrt(kappa[k])
         else:
-            raise NotImplementedError("Fixing register index not "
-                                        "yet supported.")
+            i = reg_idx
+            if sys_type == 'real':
+                vec_l = 2 * nm
+                A = np.zeros((vec_l, vec_l), dtype=ut.flt)
+                B = np.zeros((vec_l, 1), dtype=ut.flt)
+                C = np.eye(vec_l, dtype=ut.flt)
+                D = np.zeros((vec_l, 1), dtype=ut.flt)
+                
+                for k, kp in it.product(range(nm), repeat=2):
+                    rdx = k
+                    cdx = kp
+
+                    dmp_term = -0.5 * np.sqrt(kappa[k] * kappa[kp]).real
+                    rot_term = delta[k] + sum([ ut.bt_sn(i, l, nq) * chi[k, l]
+                                                for l in range(nq) ])
+                    rot_term = rot_term.real
+                    A[2 * rdx,     2 * cdx]     += dmp_term 
+                    A[2 * rdx + 1, 2 * cdx + 1] += dmp_term
+                    #The height of sloth
+                    if k == kp:
+                        A[2 * rdx, 2 * cdx + 1] += rot_term
+                        A[2 * rdx + 1, 2 * cdx] -= rot_term
+                
+                for k in range(nm):
+                    idx = k
+                    B[2 * idx + 1] = -np.sqrt(kappa[k]).real
+            
+            elif sys_type == 'complex':
+                vec_l = nm
+                A = np.zeros((vec_l, vec_l), dtype=ut.cpx)
+                B = np.zeros((vec_l, 1), dtype=ut.cpx)
+                C = np.eye(vec_l, dtype=ut.cpx)
+                D = np.zeros((vec_l, 1), dtype=ut.cpx)
+                #A gets a damping term wherever i = i'
+                
+                for k, kp in it.product(range(nm), repeat=2):
+                    rdx = k 
+                    cdx = kp
+                    A[rdx, cdx] -= 0.5 * np.sqrt(kappa[k] * kappa[kp])
+                    #The height of sloth
+                    if k == kp:
+                        rot_term = -1j * delta[k]
+                        rot_term -= 1j * sum([ ut.bt_sn(i, l, nq) * chi[k, l]
+                                                 for l in range(nq) ])
+                        A[rdx, cdx] += rot_term
+                
+                for k in range(nm):
+                    idx = k
+                    B[idx] = -1j * np.sqrt(kappa[k])
 
         return A, B, C, D
     
-    def steady_states(self, e_ss):
+    def steady_states(self, e_ss=1.):
         """
         Returns an array of cavity mode amplitudes corresponding to the
         steady states under a constant driving function. As usual, a
@@ -237,9 +284,9 @@ class Apparatus(object):
         representing the cavity mode, and the first representing the 
         register value. 
         """
-
-        pass
-
+        A, B, _, _ = self.cavity_lti(sys_type='complex')
+        return np.dot(-inv(A), B) * e_ss
+        
 def _drift_h(app):
     """
     returns the time-independent Hamiltonian.
