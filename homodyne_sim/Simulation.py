@@ -285,12 +285,11 @@ class Simulation(object):
                 pkl.dump(sim_dict, phil)
 
     def run(self, n_runs, rho_init, step_fn=None, final_fn=None, flnm=None,
-            check_herm=False, seed=None, stepper='ip15', dWs=None):
+            check_herm=False, seed=None, stepper='ip15', dWs=None, n_ln=True):
         
-        stepper_list = ut._stepper_list
-        if stepper not in stepper_list:
+        if stepper not in ut._stepper_list:
             raise ValueError("stepper must be one of "
-                                "{}.".format(stepper_list))
+                                "{}.".format(ut._stepper_list))
 
         if seed:
             np.random.seed(seed)
@@ -318,14 +317,19 @@ class Simulation(object):
         else:
             final_results = None
 
+        step_kwargs = {'rho_is_vec': rho_is_vec, 
+                        'check_herm' : check_herm
+                        'n_ln' : n_ln}
+        steppers = [_implicit_platen_15_step, _platen_15_step,
+                     _mod_euler_maruyama_step, _milstein_step,
+                     _implicit_milstein_step, _implicit_RK1_step]
+        stpr_dict = dict(zip(ut._stepper_list, steppers))
+                
         for run in xrange(n_runs):
             rho = np.copy(rho_init)
             
-            internal_dWs = True
-            if dWs is None:
-                dWs = np.random.randn(nt)
-            else:
-                internal_dWs = False        
+            internal_dWs = bool(dWs is None)
+            dWs = np.random.randn(nt) if internal_dWs
             
             for tdx in range(nt - 1):
                 # rho = ut.re_herm(rho) #is this necessary?
@@ -338,30 +342,9 @@ class Simulation(object):
                     step_results[run, tdx, ...] = \
                         step_fn(self.times[tdx], rho.copy(), dWs[tdx])
                 
-                if stepper == 'p15':
-                    rho = _platen_15_rho_step(self, tdx, rho, dt, dWs[tdx], 
-                                                rho_is_vec=rho_is_vec,
-                                                check_herm=check_herm) 
-                elif stepper == 'ip15':
-                    rho = _implicit_platen_15_rho_step(self, tdx, rho, dt, dWs[tdx], 
-                                                       rho_is_vec=rho_is_vec,
-                                                       check_herm=check_herm)
-                elif stepper == 'mem':
-                    rho = _mod_euler_maruyama_step(self, tdx, rho, dt, dWs[tdx], 
-                                                   rho_is_vec=rho_is_vec,
-                                                   check_herm=check_herm)
-                elif stepper == 'irk1':
-                    rho = _implicit_RK1_step(self, tdx, rho, dt, dWs[tdx], 
-                                                rho_is_vec=rho_is_vec,
-                                                check_herm=check_herm)
-                elif stepper == 'imil':
-                    rho = _implicit_milstein_step(self, tdx, rho, dt, dWs[tdx], 
-                                                    rho_is_vec=rho_is_vec,
-                                                    check_herm=check_herm)
-                elif stepper == 'mil':
-                    rho = _milstein_step(self, tdx, rho, dt, dWs[tdx], 
-                                          rho_is_vec=rho_is_vec,
-                                          check_herm=check_herm)
+                step_args = (self, tdx, rho, dt, dWs[tdx]) 
+                rho = stpr_dict[stepper](*step_args, **step_kwargs)
+                    
                 
             #callback
             if step_fn is not None:
