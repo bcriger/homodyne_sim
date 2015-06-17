@@ -301,8 +301,10 @@ class Simulation(object):
 
         rho_is_vec = (len(rho_init.shape) == 1)
         if rho_is_vec:
-            self.set_lindblad_spr()
-            self.set_lin_meas_spr()
+            if self.lindblad_spr is None:
+                self.set_lindblad_spr()
+            if self.lin_meas_spr is None:
+                self.set_lin_meas_spr()
 
         #use function calls to get sizes of output
         if step_fn is not None:
