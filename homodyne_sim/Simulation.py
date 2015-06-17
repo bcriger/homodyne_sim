@@ -285,9 +285,9 @@ class Simulation(object):
                 pkl.dump(sim_dict, phil)
 
     def run(self, n_runs, rho_init, step_fn=None, final_fn=None, flnm=None,
-            check_herm=False, seed=None, stepper='ip15'):
+            check_herm=False, seed=None, stepper='ip15', dWs=None):
         
-        stepper_list = ['ip15', 'p15', 'mem', 'mil', 'imil', 'irk1']
+        stepper_list = ut._stepper_list
         if stepper not in stepper_list:
             raise ValueError("stepper must be one of "
                                 "{}.".format(stepper_list))
@@ -320,13 +320,19 @@ class Simulation(object):
 
         for run in xrange(n_runs):
             rho = np.copy(rho_init)
-            dWs = np.random.randn(nt)
+            
+            internal_dWs = True
+            if dWs is None:
+                dWs = np.random.randn(nt)
+            else:
+                internal_dWs = False        
             
             for tdx in range(nt - 1):
                 # rho = ut.re_herm(rho) #is this necessary?
                 # rho /= ut.op_trace(rho) #is this necessary?
                 dt = self.times[tdx + 1] - self.times[tdx]
-                dWs[tdx] *= np.sqrt(dt)
+                if internal_dWs:
+                    dWs[tdx] *= np.sqrt(dt)
                 #callback
                 if step_fn is not None:
                     step_results[run, tdx, ...] = \

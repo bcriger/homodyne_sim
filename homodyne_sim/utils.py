@@ -17,12 +17,15 @@ __all__ = ['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat',
             'tanh_up', 'sigma_x', 'sigma_y', 'cnst_pulse', 
             'alt_photocurrent', 're_herm', 'hat_pulse', 'flt', 
             'rand_mat', 'rand_herm_mat', 'rand_dens_mat', 
-            'rand_super_vec', 'rand_pure_state', 'pq_updown']
+            'rand_super_vec', 'rand_pure_state', 'pq_updown', 
+            '_stepper_list']
 
 #cpx = np.complex64
 cpx = np.complex128
 flt = np.float64
 # cpx = np.complex256 #UNSUPPORTED IN LINALG
+
+_stepper_list = ['ip15', 'p15', 'mem', 'mil', 'imil', 'irk1']
 
 """
 HINWEIS: We adopt the convention throughout that the excited state is 
