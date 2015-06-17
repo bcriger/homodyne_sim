@@ -366,7 +366,7 @@ class Simulation(object):
                 pkl.dump(sim_dict, phil)
 
 def _platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
-                    check_herm=False):
+                    check_herm=False, n_ln=True):
     
     if not(rho_is_vec):
         raise NotImplementedError("rho_is_vec must be True "
@@ -383,26 +383,26 @@ def _platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
     I_111 = 0.5 * (dW**2/3. - dt) * dW 
     #Evaluations of DE functions
     det_v  = np.dot(sim.lindblad_spr[tdx, :, :], rho_c) #det_f(t, rho)
-    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c) #stoc_f(t, rho) 
+    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln) #stoc_f(t, rho) 
     #Nasty hack to avoid last timestep error
     try:
         det_vp = np.dot(sim.lindblad_spr[tdx + 1, :, :], rho_c) #det_f(t + dt, rho)
-        stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx + 1, :, :], rho_c) #stoc_f(t + dt, rho)
+        stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx + 1, :, :], rho_c, n_ln=n_ln) #stoc_f(t + dt, rho)
     except IndexError:
         det_vp = np.dot(sim.lindblad_spr[tdx, :, :], rho_c) #det_f(t + dt, rho)
-        stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c) #stoc_f(t + dt, rho)
+        stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln) #stoc_f(t + dt, rho)
     
     #Supporting Values
     u_p = rho_c + det_v * dt + stoc_v * np.sqrt(dt)
     u_m = rho_c + det_v * dt - stoc_v * np.sqrt(dt)
     det_u_p = np.dot(sim.lindblad_spr[tdx, :, :], u_p) #det_f(t, u_p)
     det_u_m = np.dot(sim.lindblad_spr[tdx, : ,:], u_m) #det_f(t, u_m)
-    stoc_u_p = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], u_p) #stoc_f(t, u_p)
-    stoc_u_m = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], u_m) #stoc_f(t, u_m)
+    stoc_u_p = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], u_p, n_ln=n_ln) #stoc_f(t, u_p)
+    stoc_u_m = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], u_m, n_ln=n_ln) #stoc_f(t, u_m)
     phi_p = u_p + stoc_u_p * np.sqrt(dt)
     phi_m = u_p - stoc_u_p * np.sqrt(dt)
-    stoc_phi_p = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], phi_p) #stoc_f(t, phi_p)
-    stoc_phi_m = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], phi_m) #stoc_f(t, phi_m)
+    stoc_phi_p = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], phi_p, n_ln=n_ln) #stoc_f(t, phi_p)
+    stoc_phi_m = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], phi_m, n_ln=n_ln) #stoc_f(t, phi_m)
     #Euler term
     rho_c += det_v * dt
     rho_c += stoc_v * dW 
@@ -422,7 +422,7 @@ def _platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
     return rho_c
 
 def _implicit_platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
-                    check_herm=False):
+                    check_herm=False, n_ln=True):
     
     if not(rho_is_vec):
         raise NotImplementedError("rho_is_vec must be True "
@@ -438,24 +438,24 @@ def _implicit_platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=Tr
     I_111 = 0.5 * (dW**2 / 3. - dt) * dW 
     #Evaluations of DE functions
     det_v  = np.dot(sim.lindblad_spr[tdx, :, :], rho_c) #det_f(t, rho)
-    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c) #stoc_f(t, rho) 
+    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln) #stoc_f(t, rho) 
     #Nasty hack to avoid last timestep error
     try:
-        stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx + 1, :, :], rho_c) #stoc_f(t + dt, rho)
+        stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx + 1, :, :], rho_c, n_ln=n_ln) #stoc_f(t + dt, rho)
     except IndexError:
-        stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c) #stoc_f(t + dt, rho)
+        stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln) #stoc_f(t + dt, rho)
     
     #Supporting Values
     u_p = rho_c + det_v * dt + stoc_v * np.sqrt(dt)
     u_m = rho_c + det_v * dt - stoc_v * np.sqrt(dt)
     det_u_p = np.dot(sim.lindblad_spr[tdx, :, :], u_p) #det_f(t, u_p)
     det_u_m = np.dot(sim.lindblad_spr[tdx, : ,:], u_m) #det_f(t, u_m)
-    stoc_u_p = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], u_p) #stoc_f(t, u_p)
-    stoc_u_m = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], u_m) #stoc_f(t, u_m)
+    stoc_u_p = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], u_p, n_ln=n_ln) #stoc_f(t, u_p)
+    stoc_u_m = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], u_m, n_ln=n_ln) #stoc_f(t, u_m)
     phi_p = u_p + stoc_u_p * np.sqrt(dt)
     phi_m = u_p - stoc_u_p * np.sqrt(dt)
-    stoc_phi_p = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], phi_p) #stoc_f(t, phi_p)
-    stoc_phi_m = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], phi_m) #stoc_f(t, phi_m)
+    stoc_phi_p = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], phi_p, n_ln=n_ln) #stoc_f(t, phi_p)
+    stoc_phi_m = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], phi_m, n_ln=n_ln) #stoc_f(t, phi_m)
     
     if check_herm:
         check_list = ['det_v', 'stoc_v', 'stoc_vp', 'u_p', 'u_m', 
@@ -490,7 +490,7 @@ def _implicit_platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=Tr
     return rho_c
 
 def _mod_euler_maruyama_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
-                    check_herm=False):
+                    check_herm=False, n_ln=True):
         
     rho_c = rho.copy() if copy else rho
 
@@ -501,7 +501,7 @@ def _mod_euler_maruyama_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
                 raise ValueError("Intermediate value "
                     "l_rho is not hermitian.")
         #Explicit portion (predictor?)
-        nu_rho = rho_c + 0.5 * l_rho * dt + _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c) * dW
+        nu_rho = rho_c + 0.5 * l_rho * dt + _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln) * dW
         #Implicit portion (corrector?) 
         id_mat = np.eye(nu_rho.shape[0], dtype=ut.cpx)
         try:  
@@ -516,7 +516,7 @@ def _mod_euler_maruyama_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
     return nu_rho
 
 def _implicit_RK1_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
-                    check_herm=False):
+                    check_herm=False, n_ln=True):
     """
     Page 407, KP1995
     """
@@ -530,11 +530,11 @@ def _implicit_RK1_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
     I_11  = 0.5 * (dW**2 - dt) 
     #Evaluations of DE functions
     det_v  = np.dot(sim.lindblad_spr[tdx, :, :], rho_c) #det_f(t, rho)
-    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c) #stoc_f(t, rho) 
+    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln) #stoc_f(t, rho) 
     
     #Supporting Values
     upsilon = rho_c + det_v * dt + stoc_v * np.sqrt(dt)
-    stoc_ups = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], upsilon) #stoc_f(t, upsilon)
+    stoc_ups = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], upsilon, n_ln=n_ln) #stoc_f(t, upsilon)
     
     #Euler term
     rho_c += 0.5 * det_v * dt 
@@ -553,7 +553,7 @@ def _implicit_RK1_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
     return rho_c
 
 def _trapezoid_rho_step(sim, tdx, rho, dt, copy=True, rho_is_vec=True,
-                        check_herm=False):
+                        check_herm=False, n_ln=True):
     """
     Uses the trapezoid rule for linear ODEs to step rho classically.
     This is only used by classical_sim.
@@ -583,7 +583,7 @@ def _trapezoid_rho_step(sim, tdx, rho, dt, copy=True, rho_is_vec=True,
 
 def  _implicit_milstein_step(sim, tdx, rho, dt, dW, copy=True, 
                                 rho_is_vec=True,
-                                check_herm=False):
+                                check_herm=False, n_ln=True):
     """
     Uses the Milstein update rule figured out analytically in an 
     accompanying note to see if we can eliminate the 
@@ -596,7 +596,7 @@ def  _implicit_milstein_step(sim, tdx, rho, dt, dW, copy=True,
 
     I_11 = 0.5 * (dW**2 - dt)
     det_v = np.dot(sim.lindblad_spr[tdx, :, :], rho_c)
-    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c)
+    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln)
 
     #Euler Terms
     rho_c += 0.5 * dt * det_v
@@ -634,7 +634,7 @@ def  _milstein_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
     dt = sim.times[1] - sim.times[0]
     I_11 = 0.5 * (dW**2 - dt)
     det_v = np.dot(sim.lindblad_spr[tdx, :, :], rho_c)
-    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c)
+    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln)
 
     #Euler Terms
     rho_c += dt * det_v
