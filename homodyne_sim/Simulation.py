@@ -666,9 +666,9 @@ def  _milstein_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
 
     return rho_c
 
-def _non_lin_meas(lin_meas, rho):
+def _non_lin_meas(lin_meas, rho, n_ln=True):
     temp_vec = np.dot(lin_meas, rho)
-    return temp_vec - ut.op_trace(temp_vec) * rho
+    return temp_vec - ut.op_trace(temp_vec) * rho if n_ln else temp_vec
 
 def _d_alpha_dt(alpha, t, sim):
     """
