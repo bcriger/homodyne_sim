@@ -625,7 +625,7 @@ def  _implicit_milstein_rho_step(sim, tdx, rho, dt, dW, copy=True,
     return rho_c
 
 def  _milstein_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
-                    check_herm=False):
+                    check_herm=False, n_ln=True):
     """
     Uses the Milstein update rule figured out analytically in an 
     accompanying note to see if we can eliminate the 
