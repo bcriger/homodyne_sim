@@ -80,7 +80,8 @@ class Simulation(object):
         elif integrator == 'zvode':
         
             # stepper = ode(alpha_dot, jacobian).set_integrator('zvode', method='bdf', atol=10**-12, rtol=0.)
-            stepper = ode(alpha_dot, jacobian).set_integrator('zvode', atol=10**-14, rtol=10.**-14)
+            # stepper = ode(alpha_dot, jacobian).set_integrator('zvode', atol=10**-14, rtol=10.**-14)
+            stepper = ode(alpha_dot).set_integrator('zvode', atol=10**-14, rtol=10.**-14)
             stepper.set_initial_value(alpha_0, self.times[0])
             self.amplitudes = np.empty((nt, nm, ns), dtype=ut.cpx)
             self.amplitudes[0, :, :] = alpha_0.reshape((nm,ns))
@@ -285,7 +286,7 @@ class Simulation(object):
                 pkl.dump(sim_dict, phil)
 
     def run(self, n_runs, rho_init, step_fn=None, final_fn=None, flnm=None,
-            check_herm=False, seed=None, stepper='ip15', dWs=None, n_ln=True):
+            check_herm=False, seed=None, stepper='ip15', dW_batch=None, n_ln=True):
         
         if stepper not in ut._stepper_list:
             raise ValueError("stepper must be one of "
@@ -318,18 +319,20 @@ class Simulation(object):
             final_results = None
 
         step_kwargs = {'rho_is_vec': rho_is_vec, 
-                        'check_herm' : check_herm
+                        'check_herm' : check_herm,
                         'n_ln' : n_ln}
-        steppers = [_implicit_platen_15_step, _platen_15_step,
-                     _mod_euler_maruyama_step, _milstein_step,
-                     _implicit_milstein_step, _implicit_RK1_step]
+        
+        steppers = [_implicit_platen_15_rho_step, _platen_15_rho_step,
+                     _mod_euler_maruyama_rho_step, _milstein_rho_step,
+                     _implicit_milstein_rho_step, _implicit_RK1_rho_step]
+        
         stpr_dict = dict(zip(ut._stepper_list, steppers))
                 
         for run in xrange(n_runs):
             rho = np.copy(rho_init)
             
-            internal_dWs = bool(dWs is None)
-            dWs = np.random.randn(nt) if internal_dWs
+            internal_dWs = bool(dW_batch is None)
+            dWs = np.random.randn(nt) if internal_dWs else dW_batch[run, :]
             
             for tdx in range(nt - 1):
                 # rho = ut.re_herm(rho) #is this necessary?
@@ -489,7 +492,7 @@ def _implicit_platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=Tr
 
     return rho_c
 
-def _mod_euler_maruyama_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
+def _mod_euler_maruyama_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
                     check_herm=False, n_ln=True):
         
     rho_c = rho.copy() if copy else rho
@@ -515,7 +518,7 @@ def _mod_euler_maruyama_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
 
     return nu_rho
 
-def _implicit_RK1_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
+def _implicit_RK1_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
                     check_herm=False, n_ln=True):
     """
     Page 407, KP1995
@@ -581,7 +584,7 @@ def _trapezoid_rho_step(sim, tdx, rho, dt, copy=True, rho_is_vec=True,
 
     return nu_rho
 
-def  _implicit_milstein_step(sim, tdx, rho, dt, dW, copy=True, 
+def  _implicit_milstein_rho_step(sim, tdx, rho, dt, dW, copy=True, 
                                 rho_is_vec=True,
                                 check_herm=False, n_ln=True):
     """
@@ -619,7 +622,7 @@ def  _implicit_milstein_step(sim, tdx, rho, dt, dW, copy=True,
     
     return rho_c
 
-def  _milstein_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
+def  _milstein_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
                     check_herm=False):
     """
     Uses the Milstein update rule figured out analytically in an 
