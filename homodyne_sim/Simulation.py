@@ -180,10 +180,10 @@ class Simulation(object):
 
         self.measurement = np.zeros((nt, ns, ns), ut.cpx)
         for tdx in range(nt):
-            c = np.zeros((ns, ns), dtype=ut.cpx)
-            for j in range(ns):
-                self.measurement[tdx, j, j] = sum([
-                    np.sqrt(kappa[k]) * alpha[tdx, k, j]
+            #c = np.zeros((ns, ns), ut.cpx)
+            for i in range(ns):
+                self.measurement[tdx, i, i] = sum([
+                    np.sqrt(kappa[k]) * alpha[tdx, k, i]
                             for k in range(nm)])
 
         self.measurement *= np.sqrt(eta) * np.exp(-1j * phi)
@@ -285,8 +285,13 @@ class Simulation(object):
                 pkl.dump(sim_dict, phil)
 
     def run(self, n_runs, rho_init, step_fn=None, final_fn=None, flnm=None,
-            check_herm=False, seed=None):
+            check_herm=False, seed=None, stepper='ip15'):
         
+        stepper_list = ['ip15', 'p15', 'mem', 'mil', 'imil', 'irk1']
+        if stepper not in stepper_list:
+            raise ValueError("stepper must be one of "
+                                "{}.".format(stepper_list))
+
         if seed:
             np.random.seed(seed)
 
@@ -318,44 +323,40 @@ class Simulation(object):
             dWs = np.random.randn(nt)
             
             for tdx in range(nt - 1):
-                rho = ut.re_herm(rho) #is this necessary?
-                rho /= ut.op_trace(rho) #is this necessary?
+                # rho = ut.re_herm(rho) #is this necessary?
+                # rho /= ut.op_trace(rho) #is this necessary?
                 dt = self.times[tdx + 1] - self.times[tdx]
                 dWs[tdx] *= np.sqrt(dt)
                 #callback
                 if step_fn is not None:
                     step_results[run, tdx, ...] = \
                         step_fn(self.times[tdx], rho.copy(), dWs[tdx])
-                '''
-                rho = _platen_15_rho_step(self, tdx, rho, dt, dWs[tdx], 
-                                            rho_is_vec=rho_is_vec,
-                                            check_herm=check_herm)
-                '''
-                # '''
-                rho = _implicit_platen_15_rho_step(self, tdx, rho, dt, dWs[tdx], 
-                                            rho_is_vec=rho_is_vec,
-                                            check_herm=check_herm)
-                # '''
-                '''
-                rho = _mod_euler_maruyama_step(self, tdx, rho, dt, dWs[tdx], 
-                                            rho_is_vec=rho_is_vec,
-                                            check_herm=check_herm)
-                '''
-                '''
-                rho = _implicit_RK1_step(self, tdx, rho, dt, dWs[tdx], 
-                                            rho_is_vec=rho_is_vec,
-                                            check_herm=check_herm)
-                '''
-                '''
-                rho = _implicit_milstein_step(self, tdx, rho, dt, dWs[tdx], 
+                
+                if stepper == 'p15':
+                    rho = _platen_15_rho_step(self, tdx, rho, dt, dWs[tdx], 
+                                                rho_is_vec=rho_is_vec,
+                                                check_herm=check_herm) 
+                elif stepper == 'ip15':
+                    rho = _implicit_platen_15_rho_step(self, tdx, rho, dt, dWs[tdx], 
+                                                       rho_is_vec=rho_is_vec,
+                                                       check_herm=check_herm)
+                elif stepper == 'mem':
+                    rho = _mod_euler_maruyama_step(self, tdx, rho, dt, dWs[tdx], 
+                                                   rho_is_vec=rho_is_vec,
+                                                   check_herm=check_herm)
+                elif stepper == 'irk1':
+                    rho = _implicit_RK1_step(self, tdx, rho, dt, dWs[tdx], 
                                                 rho_is_vec=rho_is_vec,
                                                 check_herm=check_herm)
-                '''
-                '''
-                rho = _milstein_step(self, tdx, rho, dt, dWs[tdx], 
-                                        rho_is_vec=rho_is_vec,
-                                        check_herm=check_herm)
-                '''
+                elif stepper == 'imil':
+                    rho = _implicit_milstein_step(self, tdx, rho, dt, dWs[tdx], 
+                                                    rho_is_vec=rho_is_vec,
+                                                    check_herm=check_herm)
+                elif stepper == 'mil':
+                    rho = _milstein_step(self, tdx, rho, dt, dWs[tdx], 
+                                          rho_is_vec=rho_is_vec,
+                                          check_herm=check_herm)
+                
             #callback
             if step_fn is not None:
                 step_results[run, -1, ...] = \

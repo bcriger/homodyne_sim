@@ -1,6 +1,7 @@
 import pylab as pl 
 import numpy as np
-from numpy.linalg import eig
+from numpy.random import rand
+from numpy.linalg import eig, eigvalsh
 import itertools as it
 from scipy.linalg import sqrtm
 
@@ -14,7 +15,9 @@ __all__ = ['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat',
             'gamma_2_lind',  'z_ham', 'interquartile_range', 
             'f_d_bin_width', 'fd_bins', 'colour_hist', 'tanh_updown',
             'tanh_up', 'sigma_x', 'sigma_y', 'cnst_pulse', 
-            'alt_photocurrent', 're_herm', 'hat_pulse', 'flt']
+            'alt_photocurrent', 're_herm', 'hat_pulse', 'flt', 
+            'rand_mat', 'rand_herm_mat', 'rand_dens_mat', 
+            'rand_super_vec', 'rand_pure_state', 'pq_updown']
 
 #cpx = np.complex64
 cpx = np.complex128
@@ -93,6 +96,33 @@ def tanh_updown(t, e_ss, sigma, t_on, t_off):
 def tanh_up(t, e_ss, sigma, t_on):
     
     return e_ss / 2. * (np.tanh((t - t_on) / sigma) + 1.)
+
+def _pq_updown(t, e_ss, sigma, t_on, t_off):
+    """
+    Evaluates a piecewise quadratic function which mimics basic pulse 
+    behaviour; rising to e_ss with a switching time sigma, then 
+    descending back to 0.
+    """
+    if 0 <= t < t_on - 0.5 * sigma:
+        eps = 0.
+    elif t_on - 0.5 * sigma <= t < t_on:
+        eps = 2. * e_ss / sigma**2 * (t - t_on + 0.5 * sigma) ** 2
+    elif t_on <= t < t_on + 0.5 * sigma:
+        eps = -2. * e_ss / sigma**2 * (t - t_on - 0.5 * sigma) ** 2 + e_ss
+    elif t_on + 0.5 * sigma <= t < t_off - 0.5 * sigma:
+        eps = e_ss
+    elif t_off - 0.5 * sigma <= t < t_off:
+        eps = -2. * e_ss / sigma**2 * (t - t_off + 0.5 * sigma) ** 2 + e_ss
+    elif t_off <= t < t_off + 0.5 * sigma:
+        eps = 2. * e_ss / sigma**2 * (t - t_off - 0.5 * sigma) ** 2
+    elif t_off + 0.5 * sigma <= t :
+        eps = 0.
+    else:
+        raise ValueError("Some kind of float gap?")
+
+    return eps
+
+pq_updown = np.vectorize(_pq_updown)
 
 def overlap(a, b, nq):
     """
@@ -342,7 +372,54 @@ def z_ham(omega, q, nq):
     return omega * com_mat(a)
 
 def re_herm(rho):
+    #                                 filth
     return 0.5 * (rho + mat2vec(vec2mat(rho).conj().transpose()))
+
+def amplitudes_1(app, times, t_on, t_off, e_ss):
+    
+    delta, kappa, chi = app.cav_params()
+    
+    if any([delta.shape != (1, ),
+            kappa.shape != (1, ),
+            chi.shape[0] != 1]):
+        raise ValueError("Only works for one mode")
+    
+    nq = chi.shape[1]
+    nt, ns = len(times), 2**nq
+    
+    delta = delta[0]
+    kappa = kappa[0]
+    chi = chi[0,:]
+    
+    amps = np.zeros(nt, 1, ns, dtype=cpx)
+    for i in range(ns):
+        eff_chi = sum([chi[l] * bt_sn(i, l, nq) for l in range(nq)])
+        amps[:, 0, i] = np.array([])
+    pass
+
+def rand_mat (sz, tp=cpx):
+    return (rand(sz, sz) + 1j * rand(sz, sz)).astype(tp)
+
+def rand_herm_mat(sz):
+    rnd_mat = rand_mat(sz)    
+    return rnd_mat + rnd_mat.conj().transpose()
+
+def rand_dens_mat(sz):
+    id_mat = np.eye(sz, dtype=cpx)
+    rnd_mat = rand_herm_mat(sz) 
+    min_eig = min(eigvalsh(rnd_mat))
+    rnd_mat += min_eig * id_mat
+    rnd_mat /= np.trace(rnd_mat)
+    return rnd_mat
+
+def rand_super_vec(sz):
+    rnd_mat = rand_dens_mat(sz)    
+    return rnd_mat.transpose().reshape((sz**2,))
+
+def rand_pure_state(sz):
+    rand_vec = rand(sz) + 1j * rand(sz)
+    return rand_vec/np.dot(rand_vec.conj(), rand_vec)
+
 
 #stackoverflow.com/questions/23228244/
 def interquartile_range(x):
