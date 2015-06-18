@@ -410,7 +410,7 @@ def amplitudes_1(app, times, e_ss, sigma, t_on, t_off):
     for i in range(ns):
         eff_chi = sum([chi[l] * bt_sn(i, l, nq) for l in range(nq)])
         amps[:, 0, i] = _amplitude_integral( times, e_ss, sigma, t_on,
-                                             t_off, delta, kappa, chi )
+                                             t_off, delta, kappa, eff_chi )
     pass
 
 def _amplitude_integral(times, e_ss, sigma, t_on, t_off, delta, kappa,
@@ -481,7 +481,7 @@ def indef_mon_exp_int(x, order, scale, t):
                 (scale * x)**(-1 - order),
                 complex(gammainc(1 + order, scale * x))])
 
-def rand_mat (sz, tp=cpx):
+def rand_mat(sz, tp=cpx):
     return (rand(sz, sz) + 1j * rand(sz, sz)).astype(tp)
 
 def rand_herm_mat(sz):
