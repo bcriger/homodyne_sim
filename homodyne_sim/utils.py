@@ -6,6 +6,7 @@ import itertools as it
 from scipy.linalg import sqrtm
 from scipy.special import gammainc
 from math import factorial as fctrl
+from operator import mul
 
 __all__ = ['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat', 
             'mat2vec', 'state2vec', 'single_op', 'arctan_updown',
@@ -35,6 +36,9 @@ the 0 state, and the ground state is the 1 state. This keeps the
 Hamiltonian proportional to Pauli Z, but implies that the other Pauli
 matrices are transposed wrt the standard definition.
 """
+
+def prod(iterable):
+    return reduce(mul, iterable, 1.)
 
 id_2 = np.eye(2, dtype=cpx)
 
@@ -473,9 +477,9 @@ def indef_mon_exp_int(x, order, scale, t):
     Evaluates the indefinite integral of x^order * exp(scale*(t - x)))
     with the constant of integration arbitrarily set to 0.
     """
-    return product([-exp(scale * t), x**(order + 1), 
-                    (scale * x)**(-1 - order),
-                    gammainc(1 + order, scale * x)])
+    return prod([-exp(scale * t), x**(order + 1), 
+                (scale * x)**(-1 - order),
+                gammainc(1 + order, scale * x)])
 
 def rand_mat (sz, tp=cpx):
     return (rand(sz, sz) + 1j * rand(sz, sz)).astype(tp)
