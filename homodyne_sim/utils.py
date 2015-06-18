@@ -486,8 +486,13 @@ def def_mon_exp_int(x_start, x_end, order, scale, t):
     Evaluates the integral from `x_start` to `x_end` of 
     x^order * exp(scale*(t - x)).
     """
-    return indef_mon_exp_int(x_end, order, scale, t) -\
-             indef_mon_exp_int(x_start, order, scale, t) 
+    if x_start == 0.0:
+        return prod([x_end**order / scale, (scale * x_end)**(-order),
+                    np.exp(scale * t), 
+                    fctrl(order) - complex(gammainc(order + 1, scale * x_end))])
+    else:
+        return indef_mon_exp_int(x_end, order, scale, t) -\
+                indef_mon_exp_int(x_start, order, scale, t) 
 
 def indef_mon_exp_int(x, order, scale, t):
     """
