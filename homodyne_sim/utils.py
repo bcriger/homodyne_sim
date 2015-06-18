@@ -4,7 +4,7 @@ from numpy.random import rand
 from numpy.linalg import eig, eigvalsh
 import itertools as it
 from scipy.linalg import sqrtm
-from scipy.special import gammainc
+from mpmath import gammainc
 from math import factorial as fctrl
 from operator import mul
 
@@ -479,7 +479,7 @@ def indef_mon_exp_int(x, order, scale, t):
     """
     return prod([-np.exp(scale * t), x**(order + 1), 
                 (scale * x)**(-1 - order),
-                gammainc(1 + order, scale * x)])
+                complex(gammainc(1 + order, scale * x))])
 
 def rand_mat (sz, tp=cpx):
     return (rand(sz, sz) + 1j * rand(sz, sz)).astype(tp)
