@@ -477,7 +477,7 @@ def indef_mon_exp_int(x, order, scale, t):
     Evaluates the indefinite integral of x^order * exp(scale*(t - x)))
     with the constant of integration arbitrarily set to 0.
     """
-    return prod([-exp(scale * t), x**(order + 1), 
+    return prod([-np.exp(scale * t), x**(order + 1), 
                 (scale * x)**(-1 - order),
                 gammainc(1 + order, scale * x)])
 
