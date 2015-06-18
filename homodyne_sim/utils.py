@@ -469,9 +469,9 @@ def def_poly_exp_int(c_list, x_start, x_end, scale, t):
     Uses indef_poly_exp_int to evaluate the corresponding definite
     integral.
     """
-    return indef_poly_exp_int(c_list, x_end, scale, t) - \
-            indef_poly_exp_int(c_list, x_start, scale, t)
-
+    return sum(c * def_mon_exp_int(x_start, x_end, j, scale, t)
+                for j, c in enumerate(c_list))
+    
 def indef_poly_exp_int(c_list, x, scale, t):
     """
     Uses indef_mon_exp_int to evaluate the integral of 
