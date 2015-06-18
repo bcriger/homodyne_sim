@@ -402,7 +402,7 @@ def amplitudes_1(app, times, e_ss, sigma, t_on, t_off):
     kappa = kappa[0]
     chi = chi[0,:]
     
-    amps = np.zeros(nt, 1, ns, dtype=cpx)
+    amps = np.zeros((nt, 1, ns), dtype=cpx)
     for i in range(ns):
         eff_chi = sum([chi[l] * bt_sn(i, l, nq) for l in range(nq)])
         amps[:, 0, i] = _amplitude_integral( times, e_ss, sigma, t_on,
