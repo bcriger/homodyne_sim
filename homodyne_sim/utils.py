@@ -427,9 +427,9 @@ def _amplitude_integral(times, e_ss, sigma, t_on, t_off, delta, kappa,
     c_lsts = [
                 [0],
                 [ poly_a * bnds[1]**2, -2. * poly_a * bnds[1],  poly_a],
-                [-poly_a * bnds[3]**2,  2. * poly_a * bnds[3], -poly_a],
+                [e_ss - poly_a * bnds[3]**2,  2. * poly_a * bnds[3], -poly_a],
                 [e_ss],
-                [-poly_a * bnds[4]**2,  2. * poly_a * bnds[4], -poly_a],
+                [e_ss - poly_a * bnds[4]**2,  2. * poly_a * bnds[4], -poly_a],
                 [ poly_a * bnds[6]**2, -2. * poly_a * bnds[6],  poly_a],
                 [0]
             ]
