@@ -411,7 +411,7 @@ def amplitudes_1(app, times, e_ss, sigma, t_on, t_off):
         eff_chi = sum([chi[l] * bt_sn(i, l, nq) for l in range(nq)])
         amps[:, 0, i] = _amplitude_integral( times, e_ss, sigma, t_on,
                                              t_off, delta, kappa, eff_chi )
-    pass
+    return amps
 
 def _amplitude_integral(times, e_ss, sigma, t_on, t_off, delta, kappa,
                         chi):
