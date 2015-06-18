@@ -4,6 +4,8 @@ from numpy.random import rand
 from numpy.linalg import eig, eigvalsh
 import itertools as it
 from scipy.linalg import sqrtm
+from scipy.special import gammainc
+from math import factorial as fctrl
 
 __all__ = ['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat', 
             'mat2vec', 'state2vec', 'single_op', 'arctan_updown',
@@ -18,7 +20,7 @@ __all__ = ['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat',
             'alt_photocurrent', 're_herm', 'hat_pulse', 'flt', 
             'rand_mat', 'rand_herm_mat', 'rand_dens_mat', 
             'rand_super_vec', 'rand_pure_state', 'pq_updown', 
-            '_stepper_list']
+            '_stepper_list', 'amplitudes_1']
 
 #cpx = np.complex64
 cpx = np.complex128
@@ -118,7 +120,7 @@ def _pq_updown(t, e_ss, sigma, t_on, t_off):
         eps = -2. * e_ss / sigma**2 * (t - t_off + 0.5 * sigma) ** 2 + e_ss
     elif t_off <= t < t_off + 0.5 * sigma:
         eps = 2. * e_ss / sigma**2 * (t - t_off - 0.5 * sigma) ** 2
-    elif t_off + 0.5 * sigma <= t :
+    elif t_off + 0.5 * sigma <= t:
         eps = 0.
     else:
         raise ValueError("Some kind of float gap?")
@@ -378,8 +380,14 @@ def re_herm(rho):
     #                                 filth
     return 0.5 * (rho + mat2vec(vec2mat(rho).conj().transpose()))
 
-def amplitudes_1(app, times, t_on, t_off, e_ss):
-    
+def amplitudes_1(app, times, e_ss, sigma, t_on, t_off):
+    """
+    Assuming a piecewise quadratic pulse, returns analytic solutions 
+    to single-mode amplitudes. Something similar can be accomplished
+    for pulses of higher polynomial order and larger numbers of modes
+    (4 is definitely okay, more maybe), but we restrict ourselves for 
+    now.
+    """
     delta, kappa, chi = app.cav_params()
     
     if any([delta.shape != (1, ),
@@ -397,8 +405,77 @@ def amplitudes_1(app, times, t_on, t_off, e_ss):
     amps = np.zeros(nt, 1, ns, dtype=cpx)
     for i in range(ns):
         eff_chi = sum([chi[l] * bt_sn(i, l, nq) for l in range(nq)])
-        amps[:, 0, i] = np.array([])
+        amps[:, 0, i] = _amplitude_integral( times, e_ss, sigma, t_on,
+                                             t_off, delta, kappa, chi )
     pass
+
+def _amplitude_integral(times, e_ss, sigma, t_on, t_off, delta, kappa,
+                        chi):
+    """
+    Evaluates the definite integral of a single-mode coherent amplitude
+    for all times in an array `times`. Stores a piecewise quadratic 
+    model of the pulse internally.
+    """
+    t_f = times[-1]
+    bnds = [0, t_on - sigma/2., t_on, t_on + sigma/2., 
+                  t_off - sigma/2., t_off, t_off + sigma/2., t_f]
+    poly_a = 2. * e_ss / sigma**2
+    c_lsts = [
+                [0],
+                [bnds[1]**2, -2. * poly_a * bnds[1],  poly_a],
+                [bnds[3]**2,  2. * poly_a * bnds[3], -poly_a],
+                [e_ss],
+                [bnds[4]**2,  2. * poly_a * bnds[4], -poly_a],
+                [bnds[6]**2, -2. * poly_a * bnds[6],  poly_a],
+                [0]
+            ]
+
+    scale = -0.5 * kappa - 1j * (delta + chi)
+
+    amp_array = np.zeros((len(times), ), dtype=cpx)
+    for tdx, t in enumerate(times):
+        for idx, bnd in enumerate(bnds[:-1]):
+            if bnd <= t < bnds[idx + 1]:
+                amp_array[tdx] += def_poly_exp_int(c_lsts[idx], bnd, t, scale, t)
+                break
+            else:
+                amp_array[tdx] += def_poly_exp_int(c_lsts[idx], bnd, bnds[idx + 1], scale, t)
+    
+    return amp_array
+
+def def_poly_exp_int(c_list, x_start, x_end, scale, t):
+    """
+    Uses indef_poly_exp_int to evaluate the corresponding definite
+    integral.
+    """
+    return indef_poly_exp_int(c_list, x_end, scale, t) - \
+            indef_poly_exp_int(c_list, x_start, scale, t)
+
+def indef_poly_exp_int(c_list, x, scale, t):
+    """
+    Uses indef_mon_exp_int to evaluate the integral of 
+    p(x) exp(scale * (t - x)) dx where p(x) is a polynomial represented
+    by a list of coefficients: p(x) = sum_j c_list[j] x**j.
+    """
+    return sum(c * indef_mon_exp_int(x, j, scale, t)
+                for j, c in enumerate(c_list))
+
+def def_mon_exp_int(x_start, x_end, order, scale, t):
+    """
+    Evaluates the integral from `x_start` to `x_end` of 
+    x^order * exp(scale*(t - x)).
+    """
+    return indef_mon_exp_int(x_end, order, scale, t) -\
+             indef_mon_exp_int(x_start, order, scale, t) 
+
+def indef_mon_exp_int(x, order, scale, t):
+    """
+    Evaluates the indefinite integral of x^order * exp(scale*(t - x)))
+    with the constant of integration arbitrarily set to 0.
+    """
+    return product([-exp(scale * t), x**(order + 1), 
+                    (scale * x)**(-1 - order),
+                    gammainc(1 + order, scale * x)])
 
 def rand_mat (sz, tp=cpx):
     return (rand(sz, sz) + 1j * rand(sz, sz)).astype(tp)
