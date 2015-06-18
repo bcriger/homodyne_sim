@@ -437,13 +437,30 @@ def _amplitude_integral(times, e_ss, sigma, t_on, t_off, delta, kappa,
     scale = -0.5 * kappa - 1j * (delta + chi)
 
     amp_array = np.zeros((len(times), ), dtype=cpx)
-    for tdx, t in enumerate(times):
+    for tdx, t in enumerate(times[1:]):
         for idx, bnd in enumerate(bnds[:-1]):
             if bnd <= t < bnds[idx + 1]:
-                amp_array[tdx] += def_poly_exp_int(c_lsts[idx], bnd, t, scale, t)
+                
+                inc = def_poly_exp_int(c_lsts[idx], bnd, t, scale, t)
+                
+                if np.isnan(inc):
+                    raise ValueError("integration up to t results in nan for "
+                        "inputs: {}, {}, {}, {}".format(c_lsts[idx], bnd, scale, t))
+                
+                amp_array[tdx + 1] += inc
+                
                 break
+
             else:
-                amp_array[tdx] += def_poly_exp_int(c_lsts[idx], bnd, bnds[idx + 1], scale, t)
+                
+                inc = def_poly_exp_int(c_lsts[idx], bnd, bnds[idx + 1], scale, t)
+                
+                if np.isnan(inc):
+                    raise ValueError("integration results in nan for "
+                        "inputs: {}, {}, {}, {}, {}".format(
+                            c_lsts[idx], bnd, bnds[idx + 1], scale, t))
+                
+                amp_array[tdx + 1] += inc
     
     return amp_array
 
