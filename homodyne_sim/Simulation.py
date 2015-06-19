@@ -326,7 +326,8 @@ class Simulation(object):
         
         steppers = [_implicit_platen_15_rho_step, _platen_15_rho_step,
                      _mod_euler_maruyama_rho_step, _milstein_rho_step,
-                     _implicit_milstein_rho_step, _implicit_RK1_rho_step]
+                     _implicit_milstein_rho_step, _implicit_RK1_rho_step,
+                     _implicit_two_rho_step]
         
         stpr_dict = dict(zip(ut._stepper_list, steppers))
                 
@@ -347,8 +348,18 @@ class Simulation(object):
                     step_results[run, tdx, ...] = \
                         step_fn(self.times[tdx], rho.copy(), dWs[tdx])
                 
-                step_args = (self, tdx, rho, dt, dWs[tdx]) 
-                rho = stpr_dict[stepper](*step_args, **step_kwargs)
+                if stepper == 'its1':
+                    if tdx == 1:
+                        step_args = (self, tdx, rho, dt, dWs[tdx]) 
+                        old_rho = rho
+                        rho = _implicit_platen_15_rho_step(*step_args, **step_kwargs)
+                    else:
+                        step_args = (self, tdx, rho, old_rho, dt, dWs[tdx], dWs[tdx - 1])
+                        old_rho = rho
+                        rho = _implicit_two_rho_step(*step_args, **step_kwargs)
+                else:
+                    step_args = (self, tdx, rho, dt, dWs[tdx]) 
+                    rho = stpr_dict[stepper](*step_args, **step_kwargs)
                     
                 
             #callback
@@ -653,6 +664,52 @@ def  _milstein_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
     rho_c += I_11 * derv_term  
 
     return rho_c
+
+def _implicit_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW, 
+                            copy=True, rho_is_vec=True, 
+                            check_herm=False, n_ln=True):
+    
+    if not(rho_is_vec):
+        raise NotImplementedError("Two-step rule only implemented for "
+                                    "column-stacked states.")
+    rho_c = rho.copy() if copy else rho
+    #Only works for uniform timestep
+    I_11 = 0.5 * (dW**2 - dt)
+    old_I_11 = 0.5 * (old_dW**2 - dt)
+    
+    det_v = np.dot(sim.lindblad_spr[tdx, :, :], rho_c)
+    old_det_v = np.dot(sim.lindblad_spr[tdx - 1, :, :], rho_c)
+    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln)    
+    old_stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], rho_c, n_ln=n_ln)    
+
+    new_rho = 0.5 * (rho_c + old_rho)
+    new_rho += dt * (0.75 * np.dot(sim.lindblad_spr[tdx, :, :], rho_c) 
+                        + 0.25 * np.dot(sim.lindblad_spr[tdx - 1, :, :], old_rho))
+
+    derv_vec = 2. * ut.mat2vec(sim.measurement[tdx, :, :].real)
+    derv_term = np.dot(sim.lin_meas_spr[tdx, :, :], stoc_v)
+    derv_term -= np.dot(derv_vec, rho_c) * stoc_v 
+    derv_term -= np.dot(derv_vec, stoc_v) * rho_c
+
+    old_derv_vec = 2. * ut.mat2vec(sim.measurement[tdx - 1, :, :].real)
+    old_derv_term = np.dot(sim.lin_meas_spr[tdx - 1, :, :], old_stoc_v)
+    old_derv_term -= np.dot(old_derv_vec, old_rho) * old_stoc_v 
+    old_derv_term -= np.dot(old_derv_vec, old_stoc_v) * old_rho
+
+    v_n = stoc_v * dW + derv_term * I_11 
+    old_v_n = old_stoc_v * old_dW + old_derv_term * old_I_11
+    
+    new_rho += v_n + old_v_n
+
+    #Implicit Correction
+    id_mat = np.eye(rho_c.shape[0], dtype=ut.cpx)
+    try:  
+        new_rho = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx + 1, :, :], new_rho)  
+    except IndexError:
+        #Last step fully explicit
+        new_rho = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx, :, :], new_rho)
+
+    return new_rho
 
 def _non_lin_meas(lin_meas, rho, n_ln=True):
     temp_vec = np.dot(lin_meas, rho)
