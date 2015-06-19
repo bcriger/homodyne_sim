@@ -363,12 +363,11 @@ class Simulation(object):
                         old_rho = rho
                         temp_step_kwargs = step_kwargs
                         temp_step_kwargs.update({'return_dZ' : True})
-                        rho, dZ = _implicit_platen_15_rho_step(*step_args, **temp_step_kwargs)
+                        rho, old_dZ = _implicit_platen_15_rho_step(*step_args, **temp_step_kwargs)
                     else:
-                        step_args = (self, tdx, rho, old_rho, dt, dWs[tdx], dWs[tdx - 1], dZ, old_dZ)
+                        step_args = (self, tdx, rho, old_rho, dt, dWs[tdx], dWs[tdx - 1], old_dZ)
                         old_rho = rho
-                        old_dZ = dZ
-                        rho, dZ = stpr_dict[stepper](*step_args, **step_kwargs)
+                        rho, old_dZ = stpr_dict[stepper](*step_args, **step_kwargs)
                 else:
                     step_args = (self, tdx, rho, dt, dWs[tdx]) 
                     rho = stpr_dict[stepper](*step_args, **step_kwargs)
@@ -725,7 +724,7 @@ def _implicit_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
     return new_rho
 
 def _implicit_15_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW, 
-                            dZ, old_dZ, copy=True, rho_is_vec=True, 
+                            old_dZ, copy=True, rho_is_vec=True, 
                             check_herm=False, n_ln=True):
     if not(rho_is_vec):
         raise NotImplementedError("Two-step rule only implemented for "
@@ -733,7 +732,10 @@ def _implicit_15_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
 
     rho_c = rho.copy() if copy else rho
 
-    I_10, old_I_10  = dZ, old_dZ 
+    u_1, u_2 = dW/np.sqrt(dt), np.random.randn()
+    I_10  = 0.5 * dt**1.5 * (u_1 + u_2 / np.sqrt(3.))
+
+    old_I_10  = old_dZ 
     I_01, old_I_01  = dW * dt - I_10, dW * dt - old_I_10 
     I_11, old_I_11  = 0.5 * (dW**2 - dt), 0.5 * (old_dW**2 - dt) 
     I_111 = 0.5 * (dW**2 / 3. - dt) * dW
