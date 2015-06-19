@@ -356,7 +356,7 @@ class Simulation(object):
                     else:
                         step_args = (self, tdx, rho, old_rho, dt, dWs[tdx], dWs[tdx - 1])
                         old_rho = rho
-                        rho = _implicit_two_rho_step(*step_args, **step_kwargs)
+                        rho = stpr_dict[stepper](*step_args, **step_kwargs)
                 else:
                     step_args = (self, tdx, rho, dt, dWs[tdx]) 
                     rho = stpr_dict[stepper](*step_args, **step_kwargs)
