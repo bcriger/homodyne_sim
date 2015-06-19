@@ -790,7 +790,7 @@ def _implicit_15_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
     old_v_n += 0.5 / dt * (old_stoc_phi_p - old_stoc_phi_m - old_stoc_u_p + old_stoc_u_m) * old_I_111 
 
     new_rho = 0.5 * (rho + old_rho) + 0.5 * dt * (1.5 * det_v + 0.5 * old_det_v)
-    new_rho += -0.125 * np.sqrt(dt) * dW * (old_det_u_p - old_det_u_m)
+    new_rho += -0.125 * np.sqrt(dt) * old_dW * (old_det_u_p - old_det_u_m)
     new_rho += v_n + 0.5 * old_v_n
 
     #Implicit Corrector
