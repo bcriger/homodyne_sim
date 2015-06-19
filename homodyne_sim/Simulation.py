@@ -348,7 +348,7 @@ class Simulation(object):
                     step_results[run, tdx, ...] = \
                         step_fn(self.times[tdx], rho.copy(), dWs[tdx])
                 
-                if stepper == 'its1':
+                if stepper in 'its1':
                     if tdx == 0:
                         step_args = (self, tdx, rho, dt, dWs[tdx]) 
                         old_rho = rho
@@ -357,6 +357,18 @@ class Simulation(object):
                         step_args = (self, tdx, rho, old_rho, dt, dWs[tdx], dWs[tdx - 1])
                         old_rho = rho
                         rho = stpr_dict[stepper](*step_args, **step_kwargs)
+                elif stepper == 'its15':
+                    if tdx == 0:
+                        step_args = (self, tdx, rho, dt, dWs[tdx]) 
+                        old_rho = rho
+                        temp_step_kwargs = step_kwargs
+                        temp_step_kwargs.update({'return_dZ' : True})
+                        rho, dZ = _implicit_platen_15_rho_step_dZ(*step_args, **temp_step_kwargs)
+                    else:
+                        step_args = (self, tdx, rho, old_rho, dt, dWs[tdx], dWs[tdx - 1], dZ, old_dZ)
+                        old_rho = rho
+                        old_dZ = dZ
+                        rho, dZ = stpr_dict[stepper](*step_args, **step_kwargs)
                 else:
                     step_args = (self, tdx, rho, dt, dWs[tdx]) 
                     rho = stpr_dict[stepper](*step_args, **step_kwargs)
@@ -438,7 +450,7 @@ def _platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
     return rho_c
 
 def _implicit_platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
-                    check_herm=False, n_ln=True):
+                    check_herm=False, n_ln=True, return_dZ=False):
     
     if not(rho_is_vec):
         raise NotImplementedError("rho_is_vec must be True "
@@ -493,7 +505,6 @@ def _implicit_platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=Tr
     
     #1/sqrt(dt) term
     rho_c += 0.5 * dt**-0.5 * (det_u_p - det_u_m) * (I_10 - 0.5 * dW * dt)
-    # rho_c += 0.5 * dt**-0.5 * (det_u_p - det_u_m) * (I_10 - dW * dt) #WILD GUESS
     rho_c += 0.5 * dt**-0.5 * (stoc_u_p - stoc_u_m) * I_11  
 
     id_mat = np.eye(rho_c.shape[0], dtype=ut.cpx)
@@ -503,7 +514,10 @@ def _implicit_platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=Tr
         #Last step fully explicit
         rho_c = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx, :, :], rho_c)
 
-    return rho_c
+    if return dZ:
+        return rho_c, dZ
+    else:
+        return rho_c
 
 def _mod_euler_maruyama_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
                     check_herm=False, n_ln=True):
@@ -678,13 +692,12 @@ def _implicit_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
     old_I_11 = 0.5 * (old_dW**2 - dt)
     
     det_v = np.dot(sim.lindblad_spr[tdx, :, :], rho_c)
-    old_det_v = np.dot(sim.lindblad_spr[tdx - 1, :, :], rho_c)
+    old_det_v = np.dot(sim.lindblad_spr[tdx - 1, :, :], old_rho)
     stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln)    
     old_stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], rho_c, n_ln=n_ln)    
 
     new_rho = 0.5 * (rho_c + old_rho)
-    new_rho += dt * (0.75 * np.dot(sim.lindblad_spr[tdx, :, :], rho_c) 
-                        + 0.25 * np.dot(sim.lindblad_spr[tdx - 1, :, :], old_rho))
+    new_rho += dt * (0.75 * det_v + 0.25 * old_det_v)
 
     derv_vec = 2. * ut.mat2vec(sim.measurement[tdx, :, :].real)
     derv_term = np.dot(sim.lin_meas_spr[tdx, :, :], stoc_v)
@@ -710,6 +723,75 @@ def _implicit_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
         new_rho = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx, :, :], new_rho)
 
     return new_rho
+
+def _implicit_15_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW, 
+                            dZ, old_dZ, copy=True, rho_is_vec=True, 
+                            check_herm=False, n_ln=True):
+    if not(rho_is_vec):
+        raise NotImplementedError("Two-step rule only implemented for "
+                                    "column-stacked states.")
+
+    rho_c = rho.copy() if copy else rho
+
+    I_10, old_I_10  = dZ, old_dZ 
+    I_01, old_I_01  = dW * dt - I_10, dW * dt - old_I_10 
+    I_11, old_I_11  = 0.5 * (dW**2 - dt), 0.5 * (old_dW**2 - dt) 
+    I_111 = 0.5 * (dW**2 / 3. - dt) * dW
+    old_I_111 = 0.5 * (old_dW**2 / 3. - dt) * old_dW
+    
+    det_v = np.dot(sim.lindblad_spr[tdx, :, :], rho_c)
+    old_det_v = np.dot(sim.lindblad_spr[tdx - 1, :, :], old_rho)
+    stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln)    
+    old_stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], rho_c, n_ln=n_ln)
+    #Nasty hack to avoid last timestep error
+    try:
+        stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx + 1, :, :], rho_c, n_ln=n_ln)
+    except IndexError:
+        stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln)     
+    old_stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], old_rho, n_ln=n_ln)
+
+    u_p = rho_c + det_v * dt + stoc_v * np.sqrt(dt)
+    old_u_p = old_rho + old_det_v * dt + old_stoc_v * np.sqrt(dt)
+    u_m = rho_c + det_v * dt - stoc_v * np.sqrt(dt)
+    old_u_m = old_rho + old_det_v * dt - old_stoc_v * np.sqrt(dt)
+
+    det_u_p = np.dot(sim.lindblad_spr[tdx, :, :], u_p)
+    old_det_u_p = np.dot(sim.lindblad_spr[tdx - 1, :, :], old_u_p)
+    det_u_m = np.dot(sim.lindblad_spr[tdx, : ,:], u_m)
+    old_det_u_m = np.dot(sim.lindblad_spr[tdx - 1, : ,:], old_u_m)
+    
+    stoc_u_p = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], u_p, n_ln=n_ln)
+    old_stoc_u_p = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], old_u_p, n_ln=n_ln)
+    stoc_u_m = _non_lin_meas(sim.lin_meas_spr[tdx , :, :], u_m, n_ln=n_ln)
+    old_stoc_u_m = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], old_u_m, n_ln=n_ln)
+    
+    phi_p = u_p + stoc_u_p * np.sqrt(dt)
+    old_phi_p = old_u_p + old_stoc_u_p * np.sqrt(dt)
+    phi_m = u_p - stoc_u_p * np.sqrt(dt)
+    old_phi_m = old_u_p - old_stoc_u_p * np.sqrt(dt)
+    
+    stoc_phi_p = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], phi_p, n_ln=n_ln)
+    old_stoc_phi_p = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], old_phi_p, n_ln=n_ln)
+    stoc_phi_m = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], phi_m, n_ln=n_ln)
+    old_stoc_phi_m = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], old_phi_m, n_ln=n_ln)
+
+    v_n = stoc_v * dW + dt**-1 * (stoc_vp - stoc_v) * I_01 
+    v_n += 0.5 * dt**-0.5 * (det_u_p - det_u_m) * (dZ - 0.5 * dW * dt)
+    v_n += 0.5 * dt**-0.5 * (stoc_u_p - stoc_u_m) * I_11 
+    v_n += 0.5 * dt**-1 (stoc_u_p - 2. * stoc_v + stoc_u_m) * I_01
+    v_n += 0.5/dt * (stoc_phi_p - stoc_phi_m - stoc_u_p + stoc_u_m) * I_111
+
+    old_v_n = old_stoc_v * old_dW + dt**-1 * (old_stoc_vp - old_stoc_v) * old_I_01 
+    old_v_n += 0.5 * dt**-0.5 * (old_det_u_p - old_det_u_m) * (old_dZ - 0.5 * old_dW * dt)
+    old_v_n += 0.5 * dt**-0.5 * (old_stoc_u_p - old_stoc_u_m) * old_I_11 
+    old_v_n += 0.5 * dt**-1 (old_stoc_u_p - 2. * old_stoc_v + old_stoc_u_m) * old_I_01
+    old_v_n += 0.5 / dt * (old_stoc_phi_p - old_stoc_phi_m - old_stoc_u_p + old_stoc_u_m) * old_I_111 
+
+    new_rho = 0.5 * (rho + old_rho) + 0.5 * dt * (1.5 * det_v + 0.5 * old_det_v)
+    new_rho += -0.125 * np.sqrt(dt) * dW * (old_det_u_p - old_det_u_m)
+    new_rho += v_n + 0.5 * old_v_n
+
+    return new_rho, dZ
 
 def _non_lin_meas(lin_meas, rho, n_ln=True):
     temp_vec = np.dot(lin_meas, rho)
