@@ -460,7 +460,7 @@ def _implicit_platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=Tr
 
     #Ito Integrals
     u_1, u_2 = dW/np.sqrt(dt), np.random.randn()
-    I_10  = 0.5 * dt**1.5 * (u_1 + u_2 / np.sqrt(3.)) 
+    I_10  = 0.5 * dt**1.5 * (u_1 + u_2 / np.sqrt(3.)) #AKA dZ
     I_01  = dW * dt - I_10 
     I_11  = 0.5 * (dW**2 - dt) 
     I_111 = 0.5 * (dW**2 / 3. - dt) * dW 
@@ -515,7 +515,7 @@ def _implicit_platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=Tr
         rho_c = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx, :, :], rho_c)
 
     if return_dZ:
-        return rho_c, dZ
+        return rho_c, I_10
     else:
         return rho_c
 
