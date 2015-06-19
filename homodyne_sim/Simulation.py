@@ -327,7 +327,7 @@ class Simulation(object):
         steppers = [_implicit_platen_15_rho_step, _platen_15_rho_step,
                      _mod_euler_maruyama_rho_step, _milstein_rho_step,
                      _implicit_milstein_rho_step, _implicit_RK1_rho_step,
-                     _implicit_two_rho_step]
+                     _implicit_two_rho_step, _implicit_15_two_rho_step]
         
         stpr_dict = dict(zip(ut._stepper_list, steppers))
                 
