@@ -732,11 +732,11 @@ def _implicit_15_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
 
     rho_c = rho.copy() if copy else rho
 
-    u_1, u_2 = dW/np.sqrt(dt), np.random.randn()
+    u_1, u_2 = dW / np.sqrt(dt), np.random.randn()
     I_10  = 0.5 * dt**1.5 * (u_1 + u_2 / np.sqrt(3.))
 
     old_I_10  = old_dZ 
-    I_01, old_I_01  = dW * dt - I_10, dW * dt - old_I_10 
+    I_01, old_I_01  = dW * dt - I_10, old_dW * dt - old_I_10 
     I_11, old_I_11  = 0.5 * (dW**2 - dt), 0.5 * (old_dW**2 - dt) 
     I_111 = 0.5 * (dW**2 / 3. - dt) * dW
     old_I_111 = 0.5 * (old_dW**2 / 3. - dt) * old_dW
@@ -744,7 +744,7 @@ def _implicit_15_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
     det_v = np.dot(sim.lindblad_spr[tdx, :, :], rho_c)
     old_det_v = np.dot(sim.lindblad_spr[tdx - 1, :, :], old_rho)
     stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln)    
-    old_stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], rho_c, n_ln=n_ln)
+    old_stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], old_rho, n_ln=n_ln)
     #Nasty hack to avoid last timestep error
     try:
         stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx + 1, :, :], rho_c, n_ln=n_ln)
@@ -793,6 +793,14 @@ def _implicit_15_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
     new_rho += -0.125 * np.sqrt(dt) * dW * (old_det_u_p - old_det_u_m)
     new_rho += v_n + 0.5 * old_v_n
 
+    #Implicit Corrector
+    id_mat = np.eye(rho_c.shape[0], dtype=ut.cpx)
+    try:  
+        new_rho = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx + 1, :, :], new_rho)  
+    except IndexError:
+        #Last step fully explicit
+        new_rho = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx, :, :], new_rho)
+    
     return new_rho, I_10
 
 def _non_lin_meas(lin_meas, rho, n_ln=True):
