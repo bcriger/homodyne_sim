@@ -778,7 +778,7 @@ def _implicit_15_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
     old_stoc_phi_m = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], old_phi_m, n_ln=n_ln)
 
     v_n = stoc_v * dW + dt**-1 * (stoc_vp - stoc_v) * I_01 
-    v_n += 0.5 * dt**-0.5 * (det_u_p - det_u_m) * (dZ - 0.5 * dW * dt)
+    v_n += 0.5 * dt**-0.5 * (det_u_p - det_u_m) * (I_10 - 0.5 * dW * dt)
     v_n += 0.5 * dt**-0.5 * (stoc_u_p - stoc_u_m) * I_11 
     v_n += 0.5 * dt**-1 (stoc_u_p - 2. * stoc_v + stoc_u_m) * I_01
     v_n += 0.5/dt * (stoc_phi_p - stoc_phi_m - stoc_u_p + stoc_u_m) * I_111
@@ -793,7 +793,7 @@ def _implicit_15_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
     new_rho += -0.125 * np.sqrt(dt) * dW * (old_det_u_p - old_det_u_m)
     new_rho += v_n + 0.5 * old_v_n
 
-    return new_rho, dZ
+    return new_rho, I_10
 
 def _non_lin_meas(lin_meas, rho, n_ln=True):
     temp_vec = np.dot(lin_meas, rho)
