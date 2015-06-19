@@ -750,6 +750,7 @@ def _implicit_15_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
         stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx + 1, :, :], rho_c, n_ln=n_ln)
     except IndexError:
         stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln)     
+    
     old_stoc_vp = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], old_rho, n_ln=n_ln)
 
     u_p = rho_c + det_v * dt + stoc_v * np.sqrt(dt)
@@ -777,16 +778,16 @@ def _implicit_15_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
     stoc_phi_m = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], phi_m, n_ln=n_ln)
     old_stoc_phi_m = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], old_phi_m, n_ln=n_ln)
 
-    v_n = stoc_v * dW + dt**-1 * (stoc_vp - stoc_v) * I_01 
+    v_n = stoc_v * dW + dt**-1. * (stoc_vp - stoc_v) * I_01 
     v_n += 0.5 * dt**-0.5 * (det_u_p - det_u_m) * (I_10 - 0.5 * dW * dt)
     v_n += 0.5 * dt**-0.5 * (stoc_u_p - stoc_u_m) * I_11 
-    v_n += 0.5 * dt**-1 * (stoc_u_p - 2. * stoc_v + stoc_u_m) * I_01
-    v_n += 0.5/dt * (stoc_phi_p - stoc_phi_m - stoc_u_p + stoc_u_m) * I_111
+    v_n += 0.5 * dt**-1. * (stoc_u_p - 2. * stoc_v + stoc_u_m) * I_01
+    v_n += 0.5 / dt * (stoc_phi_p - stoc_phi_m - stoc_u_p + stoc_u_m) * I_111
 
-    old_v_n = old_stoc_v * old_dW + dt**-1 * (old_stoc_vp - old_stoc_v) * old_I_01 
+    old_v_n = old_stoc_v * old_dW + dt**-1. * (old_stoc_vp - old_stoc_v) * old_I_01 
     old_v_n += 0.5 * dt**-0.5 * (old_det_u_p - old_det_u_m) * (old_dZ - 0.5 * old_dW * dt)
     old_v_n += 0.5 * dt**-0.5 * (old_stoc_u_p - old_stoc_u_m) * old_I_11 
-    old_v_n += 0.5 * dt**-1 * (old_stoc_u_p - 2. * old_stoc_v + old_stoc_u_m) * old_I_01
+    old_v_n += 0.5 * dt**-1. * (old_stoc_u_p - 2. * old_stoc_v + old_stoc_u_m) * old_I_01
     old_v_n += 0.5 / dt * (old_stoc_phi_p - old_stoc_phi_m - old_stoc_u_p + old_stoc_u_m) * old_I_111 
 
     new_rho = 0.5 * (rho + old_rho) + 0.5 * dt * (1.5 * det_v + 0.5 * old_det_v)
