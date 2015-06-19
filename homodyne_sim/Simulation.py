@@ -514,7 +514,7 @@ def _implicit_platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=Tr
         #Last step fully explicit
         rho_c = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx, :, :], rho_c)
 
-    if return dZ:
+    if return_dZ:
         return rho_c, dZ
     else:
         return rho_c
