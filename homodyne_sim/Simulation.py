@@ -349,7 +349,7 @@ class Simulation(object):
                         step_fn(self.times[tdx], rho.copy(), dWs[tdx])
                 
                 if stepper == 'its1':
-                    if tdx == 1:
+                    if tdx == 0:
                         step_args = (self, tdx, rho, dt, dWs[tdx]) 
                         old_rho = rho
                         rho = _implicit_platen_15_rho_step(*step_args, **step_kwargs)
