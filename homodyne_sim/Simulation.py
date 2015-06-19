@@ -699,7 +699,7 @@ def _implicit_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
     v_n = stoc_v * dW + derv_term * I_11 
     old_v_n = old_stoc_v * old_dW + old_derv_term * old_I_11
     
-    new_rho += v_n + old_v_n
+    new_rho += v_n + 0.5 * old_v_n
 
     #Implicit Correction
     id_mat = np.eye(rho_c.shape[0], dtype=ut.cpx)
