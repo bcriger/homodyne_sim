@@ -361,7 +361,7 @@ class Simulation(object):
                     if tdx == 0:
                         step_args = (self, tdx, rho, dt, dWs[tdx]) 
                         old_rho = rho
-                        temp_step_kwargs = step_kwargs
+                        temp_step_kwargs = step_kwargs.copy()
                         temp_step_kwargs.update({'return_dZ' : True})
                         rho, old_dZ = _implicit_platen_15_rho_step(*step_args, **temp_step_kwargs)
                     else:
