@@ -685,6 +685,7 @@ def _implicit_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
     if not(rho_is_vec):
         raise NotImplementedError("Two-step rule only implemented for "
                                     "column-stacked states.")
+    
     rho_c = rho.copy() if copy else rho
     #Only works for uniform timestep
     I_11 = 0.5 * (dW**2 - dt)
@@ -693,7 +694,7 @@ def _implicit_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
     det_v = np.dot(sim.lindblad_spr[tdx, :, :], rho_c)
     old_det_v = np.dot(sim.lindblad_spr[tdx - 1, :, :], old_rho)
     stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln)    
-    old_stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], rho_c, n_ln=n_ln)    
+    old_stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], old_rho, n_ln=n_ln)    
 
     new_rho = 0.5 * (rho_c + old_rho)
     new_rho += dt * (0.75 * det_v + 0.25 * old_det_v)
