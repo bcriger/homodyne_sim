@@ -181,11 +181,10 @@ class Simulation(object):
 
         self.measurement = np.zeros((nt, ns, ns), ut.cpx)
         for tdx in range(nt):
-            #c = np.zeros((ns, ns), ut.cpx)
             for i in range(ns):
-                self.measurement[tdx, i, i] = sum([
+                self.measurement[tdx, i, i] = sum(
                     np.sqrt(kappa[k]) * alpha[tdx, k, i]
-                            for k in range(nm)])
+                            for k in range(nm))
 
         self.measurement *= np.sqrt(eta) * np.exp(-1j * phi)
         pass
@@ -308,15 +307,15 @@ class Simulation(object):
 
         #use function calls to get sizes of output
         if step_fn is not None:
-            test_step = step_fn(self.times[0], rho_init.copy(), 0.)
-            step_results = np.empty((n_runs, nt) + test_step.shape, 
-                                                        dtype=ut.cpx)
+            stp_shp = step_fn(self.times[0], rho_init.copy(), 0.).shape
+            step_results = np.empty((n_runs, nt) + stp_shp, 
+                                    dtype=ut.cpx)
         else:
             step_results = None
 
         if final_fn is not None:
-            test_final = final_fn(rho_init.copy()) #garb, only need shape
-            final_results = np.empty((n_runs, ) + test_final.shape, dtype=ut.cpx)
+            lst_shp = final_fn(rho_init.copy()).shape
+            final_results = np.empty((n_runs, ) + lst_shp, dtype=ut.cpx)
         else:
             final_results = None
 
@@ -373,8 +372,9 @@ class Simulation(object):
                 
             #callback
             if step_fn is not None:
+                last_dW = np.sqrt(dt) * dWs[-1] if internal_dWs else dWs[-1]
                 step_results[run, -1, ...] = \
-                    step_fn(self.times[-1], rho.copy(), np.sqrt(dt) * dWs[-1])    
+                    step_fn(self.times[-1], rho.copy(), last_dW)
             
             if final_fn is not None:
                 final_results[run, ...] = final_fn(rho.copy())
@@ -400,7 +400,7 @@ def _platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
     rho_c = rho.copy() if copy else rho
 
     #Ito Integrals
-    u_1, u_2 = dW/np.sqrt(dt), np.random.randn()
+    u_1, u_2 = dW / np.sqrt(dt), np.random.randn()
     I_10  = 0.5 * dt**1.5 * (u_1 + u_2 / np.sqrt(3.)) 
     I_00  = 0.5 * dt**2 
     I_01  = dW * dt - I_10 
