@@ -350,13 +350,11 @@ class Simulation(object):
                 
                 if stepper == 'its1':
                     if tdx == 0:
-                        step_args = (self, tdx, rho, dt, dWs[tdx]) 
-                        old_rho = rho
-                        rho = _implicit_platen_15_rho_step(*step_args, **step_kwargs)
+                        step_args = (self, tdx, rho, dt, dWs[tdx])
+                        old_rho, rho = rho, _implicit_platen_15_rho_step(*step_args, **step_kwargs)
                     else:
                         step_args = (self, tdx, rho, old_rho, dt, dWs[tdx], dWs[tdx - 1])
-                        old_rho = rho
-                        rho = stpr_dict[stepper](*step_args, **step_kwargs)
+                        old_rho, rho = rho, stpr_dict[stepper](*step_args, **step_kwargs)
                 elif stepper == 'its15':
                     if tdx == 0:
                         step_args = (self, tdx, rho, dt, dWs[tdx]) 
@@ -687,16 +685,20 @@ def _implicit_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
                                     "column-stacked states.")
     
     rho_c = rho.copy() if copy else rho
+    old_rho_c = old_rho.copy() if copy else old_rho
     #Only works for uniform timestep
     I_11 = 0.5 * (dW**2 - dt)
     old_I_11 = 0.5 * (old_dW**2 - dt)
     
     det_v = np.dot(sim.lindblad_spr[tdx, :, :], rho_c)
-    old_det_v = np.dot(sim.lindblad_spr[tdx - 1, :, :], old_rho)
+    old_det_v = np.dot(sim.lindblad_spr[tdx - 1, :, :], old_rho_c)
     stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln)    
-    old_stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], old_rho, n_ln=n_ln)    
+    #Making an error in the next line causes the program to look like it works:
+    old_stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], old_rho_c, n_ln=n_ln)
+    # Good-looking version:
+    # old_stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], rho_c, n_ln=n_ln)
 
-    new_rho = 0.5 * (rho_c + old_rho)
+    new_rho = 0.5 * (rho_c + old_rho_c)
     new_rho += dt * (0.75 * det_v + 0.25 * old_det_v)
 
     derv_vec = 2. * ut.mat2vec(sim.measurement[tdx, :, :].real)
@@ -706,8 +708,8 @@ def _implicit_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
 
     old_derv_vec = 2. * ut.mat2vec(sim.measurement[tdx - 1, :, :].real)
     old_derv_term = np.dot(sim.lin_meas_spr[tdx - 1, :, :], old_stoc_v)
-    old_derv_term -= np.dot(old_derv_vec, old_rho) * old_stoc_v 
-    old_derv_term -= np.dot(old_derv_vec, old_stoc_v) * old_rho
+    old_derv_term -= np.dot(old_derv_vec, old_rho_c) * old_stoc_v 
+    old_derv_term -= np.dot(old_derv_vec, old_stoc_v) * old_rho_c
 
     v_n = stoc_v * dW + derv_term * I_11 
     old_v_n = old_stoc_v * old_dW + old_derv_term * old_I_11
