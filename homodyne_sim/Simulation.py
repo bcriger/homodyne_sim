@@ -697,10 +697,8 @@ def _implicit_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
     old_stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], old_rho_c, n_ln=n_ln)
     # Good-looking version:
     # old_stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx - 1, :, :], rho_c, n_ln=n_ln)
-
-    new_rho = 0.5 * (rho_c + old_rho_c)
-    new_rho += dt * (0.75 * det_v + 0.25 * old_det_v)
-
+    # old_stoc_v = stoc_v # WILD GUESS -- also looks good, is wrong
+    
     derv_vec = 2. * ut.mat2vec(sim.measurement[tdx, :, :].real)
     derv_term = np.dot(sim.lin_meas_spr[tdx, :, :], stoc_v)
     derv_term -= np.dot(derv_vec, rho_c) * stoc_v 
@@ -714,6 +712,8 @@ def _implicit_two_rho_step(sim, tdx, rho, old_rho, dt, dW, old_dW,
     v_n = stoc_v * dW + derv_term * I_11 
     old_v_n = old_stoc_v * old_dW + old_derv_term * old_I_11
     
+    new_rho = 0.5 * (rho_c + old_rho_c)
+    new_rho += dt * (0.75 * det_v + 0.25 * old_det_v)
     new_rho += v_n + 0.5 * old_v_n
 
     #Implicit Correction

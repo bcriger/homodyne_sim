@@ -514,14 +514,12 @@ def rand_herm_mat(sz):
 def rand_dens_mat(sz):
     id_mat = np.eye(sz, dtype=cpx)
     rnd_mat = rand_herm_mat(sz) 
-    min_eig = min(eigvalsh(rnd_mat))
-    rnd_mat += min_eig * id_mat
-    rnd_mat /= np.trace(rnd_mat)
-    return rnd_mat
+    large_mat = np.dot(rnd_mat, rnd_mat.conj().transpose())
+    return large_mat / trace(large_mat)
 
 def rand_super_vec(sz):
     rnd_mat = rand_dens_mat(sz)    
-    return rnd_mat.transpose().reshape((sz**2,))
+    return mat2vec(rnd_mat)
 
 def rand_pure_state(sz):
     rand_vec = rand(sz) + 1j * rand(sz)
