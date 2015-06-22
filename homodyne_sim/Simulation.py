@@ -348,7 +348,7 @@ class Simulation(object):
                     step_results[run, tdx, ...] = \
                         step_fn(self.times[tdx], rho.copy(), dWs[tdx])
                 
-                if stepper in 'its1':
+                if stepper == 'its1':
                     if tdx == 0:
                         step_args = (self, tdx, rho, dt, dWs[tdx]) 
                         old_rho = rho
