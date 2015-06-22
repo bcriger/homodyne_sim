@@ -515,7 +515,7 @@ def rand_dens_mat(sz):
     id_mat = np.eye(sz, dtype=cpx)
     rnd_mat = rand_herm_mat(sz) 
     large_mat = np.dot(rnd_mat, rnd_mat.conj().transpose())
-    return large_mat / trace(large_mat)
+    return large_mat / np.trace(large_mat)
 
 def rand_super_vec(sz):
     rnd_mat = rand_dens_mat(sz)    
