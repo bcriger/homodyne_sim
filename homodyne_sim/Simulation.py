@@ -335,7 +335,7 @@ class Simulation(object):
             rho = np.copy(rho_init)
             
             internal_dWs = bool(dW_batch is None)
-            dWs = np.random.randn(nt) if internal_dWs else dW_batch[run, :]
+            dWs = np.random.randn(nt - 1) if internal_dWs else dW_batch[run, :]
             
             for tdx in range(nt - 1):
                 # rho = ut.re_herm(rho) #is this necessary?
@@ -553,10 +553,10 @@ def _euler_maruyama_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
         stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln)    
         
         if check_herm:
-            if ut.op_herm_dev(l_rho) > 0.1 * dt:
+            if ut.op_herm_dev(det_v) > 0.1 * dt:
                 raise ValueError("Intermediate value "
-                    "l_rho is not hermitian.")
-        nu_rho = rho_c + l_rho * dt + stoc_v * dW
+                    "det_v is not hermitian.")
+        nu_rho = rho_c + det_v * dt + stoc_v * dW
         
     else:
         raise NotImplementedError("Euler-Maruyama rule only implemented for "
