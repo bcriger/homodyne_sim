@@ -29,7 +29,7 @@ flt = np.float64
 # cpx = np.complex256 #UNSUPPORTED IN LINALG
 
 _stepper_list = ['ip15', 'p15', 'mem', 'mil', 'imil', 'irk1', 'its1', 
-                    'its15']
+                    'its15', 'em']
 
 """
 HINWEIS: We adopt the convention throughout that the excited state is 

@@ -326,7 +326,8 @@ class Simulation(object):
         steppers = [_implicit_platen_15_rho_step, _platen_15_rho_step,
                      _mod_euler_maruyama_rho_step, _milstein_rho_step,
                      _implicit_milstein_rho_step, _implicit_RK1_rho_step,
-                     _implicit_two_rho_step, _implicit_15_two_rho_step]
+                     _implicit_two_rho_step, _implicit_15_two_rho_step,
+                     _euler_maruyama_rho_step]
         
         stpr_dict = dict(zip(ut._stepper_list, steppers))
                 
@@ -537,7 +538,28 @@ def _mod_euler_maruyama_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=Tr
             #Last step fully explicit
             nu_rho = np.linalg.solve(id_mat - 0.5 * dt * sim.lindblad_spr[tdx, :, :], nu_rho)
     else:
-      raise NotImplementedError("Trapezoid rule only implemented for "
+        raise NotImplementedError("Euler-Maruyama rule only implemented for "
+                                    "column-stacked states.")
+
+    return nu_rho
+
+def _euler_maruyama_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
+                    check_herm=False, n_ln=True):
+        
+    rho_c = rho.copy() if copy else rho
+    if rho_is_vec:
+        
+        det_v = np.dot(sim.lindblad_spr[tdx, :, :], rho_c)
+        stoc_v = _non_lin_meas(sim.lin_meas_spr[tdx, :, :], rho_c, n_ln=n_ln)    
+        
+        if check_herm:
+            if ut.op_herm_dev(l_rho) > 0.1 * dt:
+                raise ValueError("Intermediate value "
+                    "l_rho is not hermitian.")
+        nu_rho = rho_c + l_rho * dt + stoc_v * dW
+        
+    else:
+        raise NotImplementedError("Euler-Maruyama rule only implemented for "
                                     "column-stacked states.")
 
     return nu_rho
