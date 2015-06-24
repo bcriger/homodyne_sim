@@ -391,6 +391,31 @@ class Simulation(object):
             with open('/'.join([getcwd(),flnm]), 'w') as phil:
                 pkl.dump(sim_dict, phil)
 
+    def lin_lyapunov_exps(self, take_log=False):
+        """
+        Returns a time-series of the Lyapunov exponents of the linear
+        problem corresponding to the simulation:
+        d rho = L*rho dt + (I kron A + conj(A) kron I) rho dW
+
+        These are the eigenvalues of the matrix:
+        L - 1/2 (I kron A + conj(A) kron I)**2 
+        when the lindbladian and measurement superoperators are 
+        commuting. This function assumes they are always diagonal, so 
+        it just returns the diagonal values, sorted. 
+        """
+
+        if self.lindblad_spr is None:
+            self.set_lindblad_spr()
+        if self.lin_meas_spr is None:
+            self.set_lin_meas_spr()
+
+        nq, nm, ns, nt = self.sizes()
+
+        exponents = np.empty((nt, ns**2), dtype=ut.cpx)
+        for tdx in range(nt):
+            exponents[tdx, :] = sorted(np.diag(self.lindblad_spr[tdx, :, :]
+                - 0.5 * np.matrix_power(self.lin_meas_spr[tdx, :, :], 2)))
+
 def _platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
                     check_herm=False, n_ln=True):
     
