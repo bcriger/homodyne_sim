@@ -417,6 +417,8 @@ class Simulation(object):
             exponents[tdx, :] = sorted(np.diag(self.lindblad_spr[tdx, :, :]
                 - 0.5 * matrix_power(self.lin_meas_spr[tdx, :, :], 2)))
 
+        return exponents
+
 def _platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
                     check_herm=False, n_ln=True):
     
