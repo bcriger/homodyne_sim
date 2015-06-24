@@ -1,4 +1,5 @@
 import numpy as np 
+from numpy.linalg import matrix_power
 from scipy.linalg import inv
 from scipy.integrate import ode
 from Apparatus import Apparatus
@@ -414,7 +415,7 @@ class Simulation(object):
         exponents = np.empty((nt, ns**2), dtype=ut.cpx)
         for tdx in range(nt):
             exponents[tdx, :] = sorted(np.diag(self.lindblad_spr[tdx, :, :]
-                - 0.5 * np.matrix_power(self.lin_meas_spr[tdx, :, :], 2)))
+                - 0.5 * matrix_power(self.lin_meas_spr[tdx, :, :], 2)))
 
 def _platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
                     check_herm=False, n_ln=True):
