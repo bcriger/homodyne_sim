@@ -7,6 +7,8 @@ from scipy.linalg import sqrtm
 from mpmath import gammainc
 from math import factorial as fctrl
 from operator import mul
+from glob import glob as glob #glob
+import cPickle as pkl
 
 __all__ = ['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat', 
             'mat2vec', 'state2vec', 'single_op', 'arctan_updown',
@@ -86,7 +88,8 @@ def single_op(mat, q, nq):
 
 cnst_pulse = np.vectorize(lambda t, cnst: cnst)
 
-hat_pulse = np.vectorize(lambda t, cnst, t_on, t_off: cnst if t_on < t < t_off else 0.)
+hat_pulse = np.vectorize(lambda t, cnst, t_on, t_off:
+                            cnst if t_on < t < t_off else 0.)
 
 def arctan_updown(t, e_ss, sigma, t_on, t_off):
     
@@ -246,7 +249,7 @@ def concurrence(rho):
     r"""
     wikipedia.org/wiki/Concurrence_%28quantum_computing%29#Definition
     """
-    if rho.shape not in [(4,4), (16,)]:
+    if rho.shape not in [(4, 4), (16, )]:
         raise ValueError("Concurrence only works for two-qubit states")
     rho_c = vec2mat(np.copy(rho)) if rho.shape == (16,) else rho
     test_mat = reduce(np.dot, [rho_c, YY, rho_c.conj(), YY])
@@ -545,4 +548,58 @@ def colour_hist(pc, f_p, f_m):
     pc is the summed photocurrent
     f_p is the  
     """
+    pass
+
+def avg_data(fl_out):
+    """
+    Collects all files matching *.pkl in the current directory, 
+    unpickles assuming a pickled dict, and averages the values 
+    corresponding to the keys 'step_results' and 'final_results', if
+    they exist.
+    """
+    
+    potential_keys = ['step_results', 'final_results', 'apparatus', 
+                        'pulse_shape', 'times']
+    
+    avg_dict = dict.fromkeys(potential_keys)
+    
+    flist = sorted(glob('*.pkl'))
+    n_files = len(flist)
+
+    with open(flist[0], 'r') as params_file:
+        params_dict = pkl.load(params_file)
+
+    #Things that don't depend on the individual trajectory are copied
+    #over first
+    for key in potential_keys[2:]:
+        avg_dict[key] = params_dict[key]
+
+    #Get sizes so we can make arrays
+    if params_dict['step_results']:
+        n_traj, n_times, n_quants = params_dict['step_results'].shape
+        fl_stp_means = np.empty((n_files, n_times, n_quants), cpx)
+
+    if params_dict['final_results']:
+        rslt_shp = params_dict['final_results'].shape[1:]
+        fl_fnl_means = np.empty((n_files, ) + rslt_shp, cpx)
+
+
+    for fdx, phil in enumerate(flist):
+        with open(phil, 'r') as fill:
+            curr_dict = pkl.load(fill)
+        
+        stp_rslts = curr_dict['step_results']
+        fnl_rslts = curr_dict['final_results']
+        
+        if stp_rslts:
+            fl_stp_means[fdx, ...] = np.mean(stp_rslts, axis=0)
+        if fnl_rslts:
+            fl_fnl_means[fdx, ...] = np.mean(fnl_rslts, axis=0)
+
+    avg_dict['step_results'] = np.mean(fl_stp_means, axis=0)
+    avg_dict['final_results'] = np.mean(fl_fnl_means, axis=0)
+
+    with open(fl_out, 'w') as out_file:
+        pkl.dump(avg_dict, out_file)
+
     pass
