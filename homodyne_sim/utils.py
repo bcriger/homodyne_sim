@@ -23,7 +23,8 @@ __all__ = ['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat',
             'alt_photocurrent', 're_herm', 'hat_pulse', 'flt', 
             'rand_mat', 'rand_herm_mat', 'rand_dens_mat', 
             'rand_super_vec', 'rand_pure_state', 'pq_updown', 
-            '_stepper_list', 'amplitudes_1', 'def_poly_exp_int']
+            '_stepper_list', 'amplitudes_1', 'def_poly_exp_int', 
+            'avg_data']
 
 #cpx = np.complex64
 cpx = np.complex128
