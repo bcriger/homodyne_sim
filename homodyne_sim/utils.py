@@ -575,12 +575,15 @@ def avg_data(fl_out):
     for key in potential_keys[2:]:
         avg_dict[key] = params_dict[key]
 
+    steps_exist = params_dict['step_results'] is not None
+    finals_exist = params_dict['final_results'] is not None
+
     #Get sizes so we can make arrays
-    if params_dict['step_results']:
+    if steps_exist:
         n_traj, n_times, n_quants = params_dict['step_results'].shape
         fl_stp_means = np.empty((n_files, n_times, n_quants), cpx)
 
-    if params_dict['final_results']:
+    if finals_exist:
         rslt_shp = params_dict['final_results'].shape[1:]
         fl_fnl_means = np.empty((n_files, ) + rslt_shp, cpx)
 
@@ -592,9 +595,9 @@ def avg_data(fl_out):
         stp_rslts = curr_dict['step_results']
         fnl_rslts = curr_dict['final_results']
         
-        if stp_rslts:
+        if steps_exist:
             fl_stp_means[fdx, ...] = np.mean(stp_rslts, axis=0)
-        if fnl_rslts:
+        if finals_exist:
             fl_fnl_means[fdx, ...] = np.mean(fnl_rslts, axis=0)
 
     avg_dict['step_results'] = np.mean(fl_stp_means, axis=0)
