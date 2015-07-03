@@ -600,8 +600,10 @@ def avg_data(fl_out):
         if finals_exist:
             fl_fnl_means[fdx, ...] = np.mean(fnl_rslts, axis=0)
 
-    avg_dict['step_results'] = np.mean(fl_stp_means, axis=0)
-    avg_dict['final_results'] = np.mean(fl_fnl_means, axis=0)
+    if steps_exist:
+        avg_dict['step_results'] = np.mean(fl_stp_means, axis=0)
+    if finals_exist:
+        avg_dict['final_results'] = np.mean(fl_fnl_means, axis=0)
 
     with open(fl_out, 'w') as out_file:
         pkl.dump(avg_dict, out_file)
