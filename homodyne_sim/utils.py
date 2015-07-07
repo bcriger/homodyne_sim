@@ -24,7 +24,7 @@ __all__ = ['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat',
             'rand_mat', 'rand_herm_mat', 'rand_dens_mat', 
             'rand_super_vec', 'rand_pure_state', 'pq_updown', 
             '_stepper_list', 'amplitudes_1', 'def_poly_exp_int', 
-            'avg_data']
+            'avg_data', 'sum_step_data']
 
 #cpx = np.complex64
 cpx = np.complex128
@@ -609,3 +609,66 @@ def avg_data(fl_out):
         pkl.dump(avg_dict, out_file)
 
     pass
+
+
+def sum_step_data(fl_out):
+    """
+    Collects all files matching *.pkl in the current directory, 
+    unpickles assuming a pickled dict, and sums the values from the 
+    key 'step_results', if it exists. Assumes all files contain the 
+    same number of trajectories.
+    """
+    
+    potential_keys = ['step_results', 'final_results', 'apparatus', 
+                        'pulse_shape', 'times']
+    
+    short_dict = dict.fromkeys(potential_keys)
+    
+    flist = sorted(glob('*.pkl'))
+    n_files = len(flist)
+
+    with open(flist[0], 'r') as params_file:
+        params_dict = pkl.load(params_file)
+
+    #Things that don't depend on the individual trajectory are copied
+    #over first
+    for key in potential_keys[2:]:
+        short_dict[key] = params_dict[key]
+
+    steps_exist = params_dict['step_results'] is not None
+    finals_exist = params_dict['final_results'] is not None
+
+    #Get sizes so we can make arrays
+    if steps_exist:
+        n_traj, n_times, n_quants = params_dict['step_results'].shape
+        fl_stp_ints = np.empty((n_files * n_traj, n_quants), cpx)
+
+    if finals_exist:
+        rslt_shp = params_dict['final_results'].shape[1:]
+        fl_fnls = np.empty((n_files * n_traj, ) + rslt_shp, cpx)
+
+
+    for fdx, phil in enumerate(flist):
+        with open(phil, 'r') as fill:
+            curr_dict = pkl.load(fill)
+        
+        stp_rslts = curr_dict['step_results']
+        fnl_rslts = curr_dict['final_results']
+        
+        if steps_exist:
+            for trdx in range(n_traj):
+                fl_stp_ints[fdx * n_traj + trdx, ...] = np.sum(stp_rslts[trdx, ...], axis=0)
+        if finals_exist:
+            for trdx in range(n_traj):
+                fl_fnls[fdx * n_traj + trdx, ...] = fnl_rslts[trdx, ...]
+
+        if steps_exist:
+            short_dict['step_results'] = fl_stp_ints
+        if finals_exist:
+            short_dict['final_results'] = fl_fnls
+    
+    with open(fl_out, 'w') as out_file:
+        pkl.dump(short_dict, out_file)
+
+    pass
+
