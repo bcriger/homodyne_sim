@@ -672,3 +672,24 @@ def sum_step_data(fl_out):
 
     pass
 
+def post_selected(data_array, cond_array, pred):
+    """
+    Splits an iterable of data into two lists, with membership of an 
+    element depending on whether the corresponding value of another
+    iterable satisfies a predicate. 
+
+    e.g.:
+    post_selected([1, 2, 3, 4, 5], [0, 0, 1, 1, 1], lambda x: x > 0) = 
+    ([3, 4, 5], [1, 2])
+    """
+    sat_list = []
+    unsat_list = []
+    
+    for idx, elem in enumerate(data_array):
+        if pred(cond_array[idx]):
+            sat_list.append(elem)
+        else:
+            unsat_list.append(elem)
+    
+    return sat_list, unsat_list
+
