@@ -24,7 +24,7 @@ __all__ = ['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat',
             'rand_mat', 'rand_herm_mat', 'rand_dens_mat', 
             'rand_super_vec', 'rand_pure_state', 'pq_updown', 
             '_stepper_list', 'amplitudes_1', 'def_poly_exp_int', 
-            'avg_data', 'sum_step_data', 'post_selected']
+            'avg_data', 'sum_step_data', 'post_selected', 'pq_up']
 
 #cpx = np.complex64
 cpx = np.complex128
@@ -138,7 +138,7 @@ def _pq_updown(t, e_ss, sigma, t_on, t_off):
 
 pq_updown = np.vectorize(_pq_updown)
 
-def _pq_up(t, e_ss, sigma, t_on, t_off):
+def _pq_up(t, e_ss, sigma, t_on):
     """
     Evaluates a piecewise quadratic function which mimics basic pulse 
     behaviour; rising to e_ss with a switching time sigma, then 
