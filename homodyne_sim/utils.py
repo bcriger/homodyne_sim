@@ -138,6 +138,27 @@ def _pq_updown(t, e_ss, sigma, t_on, t_off):
 
 pq_updown = np.vectorize(_pq_updown)
 
+def _pq_up(t, e_ss, sigma, t_on, t_off):
+    """
+    Evaluates a piecewise quadratic function which mimics basic pulse 
+    behaviour; rising to e_ss with a switching time sigma, then 
+    descending back to 0.
+    """
+    if 0 <= t < t_on - 0.5 * sigma:
+        eps = 0.
+    elif t_on - 0.5 * sigma <= t < t_on:
+        eps = 2. * e_ss / sigma**2 * (t - t_on + 0.5 * sigma) ** 2
+    elif t_on <= t < t_on + 0.5 * sigma:
+        eps = -2. * e_ss / sigma**2 * (t - t_on - 0.5 * sigma) ** 2 + e_ss
+    elif t_on + 0.5 * sigma <= t:
+        eps = e_ss
+    else:
+        raise ValueError("Some kind of float gap?")
+
+    return eps
+
+pq_up = np.vectorize(_pq_up)
+
 def overlap(a, b, nq):
     """
     Determines the overlap between two `nq`-qubit quantum 
