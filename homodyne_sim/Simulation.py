@@ -285,8 +285,52 @@ class Simulation(object):
             with open('/'.join([getcwd(),flnm]), 'w') as phil:
                 pkl.dump(sim_dict, phil)
 
-    def run(self, n_runs, rho_init, step_fn=None, final_fn=None, flnm=None,
+    def run(self, n_runs, rho_init, step_fn=None, final_fn=None, avg_fn=None, flnm=None,
             check_herm=False, seed=None, stepper='ip15', dW_batch=None, n_ln=True):
+        r"""
+        Simulates the evolution of a density operator under the stored 
+        time-dependent lindbladian/measurement operator.
+
+        :param n_runs: the number of trajectories to be simulated.
+        :type n_runs: int
+        :param rho_init: the initial density operator, in either matrix
+                            or column-stacked form.
+        :type rho_init: numpy.ndarray of dtype homodyne_sim.cpx
+        :param step_fn: a callback function, called at every step, 
+                        whose output is incorporated in `step_results`
+        :type step_fn: function returning a numpy.ndarray
+        :param final_fn: a callback function, called after every 
+                        trajectory, whose output is incorporated into 
+                        `final_results`.
+        :type final_fn: function returning a numpy.ndarray
+        :param avg_fn: a callback function, called after every 
+                        trajectory, whose results are incorporated into
+                        `avg_results`, an average over trajectories.
+        :type avg_fn: function returning a numpy.ndarray
+        :param flnm: a filename for storage. If set, the results will be 
+                        saved. If unset, the results will be returned.
+        :type flnm: str 
+        :param check_herm: A flag to determine at each step whether 
+                            summands of :math:`d\rho` are hermitian. 
+                            Not implemented in every stepper, set to 
+                            False by default.
+        :type check_herm: bool
+        :param seed: seed for the random number generator, optional.
+        :type seed: numpy.float64
+        :param stepper: tag for the function used to advance 
+                        :math:`\rho(t)` to :math:`\rho(t+dt)`. Must be
+                        drawn from homodyne_sim._stepper_list
+        :type stepper: str
+        :param dW_batch: a 2D array of Wiener increments for each 
+                        trajectory, to be provided if 
+                        internally-generated increments are not to be 
+                        used.
+        :type dW_batch: numpy.ndarray of homodyne_sim.flt
+        :param n_ln: Flag which determines whether to simulate the full
+                     non-linear action of the measurement operator, or 
+                     the linear action. Optional; default True.
+        :type n_ln: bool 
+        """
         
         if stepper not in ut._stepper_list:
             raise ValueError("stepper must be one of "
@@ -319,6 +363,12 @@ class Simulation(object):
             final_results = np.empty((n_runs, ) + lst_shp, dtype=ut.cpx)
         else:
             final_results = None
+
+        if avg_fn is not None:
+            avg_shp = avg_fn(rho_init.copy()).shape
+            avg_results = np.zeros(avg_shp, dtype=ut.cpx)
+        else:
+            avg_results = None
 
         step_kwargs = {'rho_is_vec': rho_is_vec, 
                         'check_herm' : check_herm,
@@ -380,15 +430,20 @@ class Simulation(object):
             
             if final_fn is not None:
                 final_results[run, ...] = final_fn(rho.copy())
+            
+            if avg_fn is not None:
+                count = run + 1
+                avg_results += (avg_fn(rho.copy()) - avg_results) / count
         
         if flnm is None:
-            return final_results, step_results
+            return final_results, step_results, avg_results
         else:
             sim_dict = {'apparatus': self.apparatus,
                         'times': self.times,
                         'pulse_shape': self.pulse_fn(self.times),
                         'final_results': final_results,
-                        'step_results': step_results}
+                        'step_results': step_results,
+                        'avg_results': avg_results}
             with open('/'.join([getcwd(),flnm]), 'w') as phil:
                 pkl.dump(sim_dict, phil)
 

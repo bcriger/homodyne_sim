@@ -142,7 +142,7 @@ def _pq_up(t, e_ss, sigma, t_on):
     """
     Evaluates a piecewise quadratic function which mimics basic pulse 
     behaviour; rising to e_ss with a switching time sigma, then 
-    descending back to 0.
+    staying at e_ss indefinitely.
     """
     if 0 <= t < t_on - 0.5 * sigma:
         eps = 0.
