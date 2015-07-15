@@ -153,7 +153,7 @@ def _pq_up(t, e_ss, sigma, t_on):
     elif t_on + 0.5 * sigma <= t:
         eps = e_ss
     else:
-        raise ValueError("Some kind of float gap?")
+        raise ValueError("Equality test failed.")
 
     return eps
 
@@ -632,7 +632,7 @@ def avg_data(fl_out):
     pass
 
 
-def sum_step_data(fl_out):
+def sum_step_data(fl_out, filter_kernel=None):
     """
     Collects all files matching *.pkl in the current directory, 
     unpickles assuming a pickled dict, and sums the values from the 
@@ -678,7 +678,10 @@ def sum_step_data(fl_out):
         
         if steps_exist:
             for trdx in range(n_traj):
-                fl_stp_ints[fdx * n_traj + trdx, ...] = np.sum(stp_rslts[trdx, ...], axis=0)
+                if filter_kernel is not None:
+                    fl_stp_ints[fdx * n_traj + trdx, ...] = np.average(stp_rslts[trdx, ...], axis=0) * len(stp_rslts[trdx, ...])
+                else:
+                    fl_stp_ints[fdx * n_traj + trdx, ...] = np.sum(stp_rslts[trdx, ...], axis=0)
         if finals_exist:
             for trdx in range(n_traj):
                 fl_fnls[fdx * n_traj + trdx, ...] = fnl_rslts[trdx, ...]
