@@ -680,7 +680,7 @@ def sum_step_data(fl_out, filter_kernel=None):
             for trdx in range(n_traj):
                 if filter_kernel is not None:
                     fl_stp_ints[fdx * n_traj + trdx, ...] = np.average(
-                        stp_rslts[trdx, ...], axis=0, weights=filter_kernel
+                        stp_rslts[trdx, ..., 0], axis=0, weights=filter_kernel
                         ) * len(stp_rslts[trdx, ...])
                 else:
                     fl_stp_ints[fdx * n_traj + trdx, ...] = np.sum(stp_rslts[trdx, ...], axis=0)
