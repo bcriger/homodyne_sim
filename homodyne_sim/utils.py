@@ -671,7 +671,10 @@ def sum_step_data(fl_out, filter_kernel=None):
 
     for fdx, phil in enumerate(flist):
         with open(phil, 'r') as fill:
-            curr_dict = pkl.load(fill)
+            try:
+                curr_dict = pkl.load(fill)
+            except ValueError:
+                continue
         
         stp_rslts = curr_dict['step_results']
         fnl_rslts = curr_dict['final_results']
