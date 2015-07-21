@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.linalg import inv
 import itertools as it
 import utils as ut
 from scipy.signal import lti
@@ -283,7 +284,7 @@ class Apparatus(object):
         register value. 
         """
         A, B, _, _ = self.cavity_lti(sys_type='complex')
-        return np.dot(-np.inv(A), B) * e_ss
+        return np.dot(-inv(A), B) * e_ss
         
 def _drift_h(app):
     """
