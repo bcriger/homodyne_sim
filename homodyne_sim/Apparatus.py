@@ -283,8 +283,8 @@ class Apparatus(object):
         representing the cavity mode, and the first representing the 
         register value. 
         """
-        A, B, _, _ = self.cavity_lti(sys_type='complex')
-        return np.dot(-inv(A), B) * e_ss
+        A, B, C, _ = self.cavity_lti(sys_type='complex')
+        return reduce(np.dot, [C, -inv(A), B]) * e_ss
         
 def _drift_h(app):
     """
