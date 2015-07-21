@@ -283,7 +283,7 @@ class Apparatus(object):
         register value. 
         """
         A, B, _, _ = self.cavity_lti(sys_type='complex')
-        return np.dot(-inv(A), B) * e_ss
+        return np.dot(-np.inv(A), B) * e_ss
         
 def _drift_h(app):
     """
