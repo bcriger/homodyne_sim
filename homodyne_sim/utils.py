@@ -237,7 +237,7 @@ def fidelity(rho, sigma):
     operators.
     """
     sqrt_rho = sqrtm(rho)
-    return np.sqrt(reduce(np.dot, [sqrt_rho, sigma, sqrt_rho]))
+    return np.trace(np.sqrt(reduce(np.dot, [sqrt_rho, sigma, sqrt_rho])))
 
 def photocurrent(t, rho, dW, sim):
     """
