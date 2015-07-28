@@ -166,10 +166,14 @@ class Simulation(object):
                         (ut.bt_sn(i, l, nq) - ut.bt_sn(j, l, nq))
         pass
 
-    def set_measurement(self):
+    def set_measurement(self, real_only=False, zs_only=False):
         """
         Prepares a (1+2)-dimensional array which stores explicit 
-        measurement operators.
+        measurement operators. If the flag `real_only` is set to True,
+        the real part of the operator is returned (this prevents 
+        stochastic rotations). If the `zs_only` flag is set, then only
+        the part of the operator proportional to the parity operator
+        is returned. 
         """
         _, nm, ns, nt = self.sizes()
 
@@ -188,6 +192,12 @@ class Simulation(object):
                             for k in range(nm))
 
         self.measurement *= np.sqrt(eta) * np.exp(-1j * phi)
+        
+        if real_only:
+            self.measurement = self.measurement.real 
+        if zs_only:
+            pass
+        
         pass
 
     def set_lindblad_spr(self):
