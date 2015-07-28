@@ -245,8 +245,8 @@ class Simulation(object):
             self.set_measurement()
         pass
 
-    def classical_sim(self, rho_init, step_fn=None, flnm=None,
-                        check_herm=False):
+    def classical_sim(self, rho_init, step_fn=None, final_fn=None,
+                     flnm=None, check_herm=False):
         
         nq, nm, ns, nt = self.sizes()
         rho_is_vec = (len(rho_init.shape) == 1)
@@ -266,8 +266,14 @@ class Simulation(object):
         else:
             step_result = None
         
+        if final_fn is not None:
+            lst_shp = final_fn(rho_init.copy()).shape
+            final_result = np.empty(lst_shp, dtype=ut.cpx)
+        else:
+            final_result = None
+
         for tdx in range(1, nt):
-            dt = self.times[tdx] - self.times[tdx-1]
+            dt = self.times[tdx] - self.times[tdx - 1]
             rho = _trapezoid_rho_step(self, tdx, rho, dt, 
                                     rho_is_vec=rho_is_vec,
                                     check_herm=check_herm)
@@ -275,13 +281,17 @@ class Simulation(object):
             if step_fn is not None:
                 step_result[tdx, :] = step_fn(self.times[tdx], rho.copy())
 
+        if final_fn is not None:
+            final_result = final_fn(rho.copy())
+
         if flnm is None:
-            return step_result
+            return step_result, final_result
         else:
             sim_dict = {'apparatus': self.apparatus,
                         'times': self.times,
                         'pulse_shape': self.pulse_fn(self.times),
-                        'step_result': step_result}
+                        'step_result': step_result,
+                        'final_result': final_result}
             with open('/'.join([getcwd(),flnm]), 'w') as phil:
                 pkl.dump(sim_dict, phil)
 

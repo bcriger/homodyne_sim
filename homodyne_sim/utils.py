@@ -159,6 +159,28 @@ def _pq_up(t, e_ss, sigma, t_on):
 
 pq_up = np.vectorize(_pq_up)
 
+def _exp_up(t, e_ss, sigma):
+    """
+    Mimics a low-pass-filtered step function by approaching e_ss 
+    exponentially.
+    """
+    return e_ss * (1. - np.exp(-t / sigma))
+   
+exp_up = np.vectorize(_exp_up)
+
+def _exp_updown(t, e_ss, sigma, t_off):
+    """
+    Mimics a low-pass-filtered hat function by approaching e_ss 
+    exponentially, then coming back down. Poor selection of parameters
+    may result in discontinuity.
+    """
+    if t < t_off:
+        return e_ss * (1. - np.exp(-t / sigma))
+    else:
+        return e_ss * (np.exp(-(t - t_off) / sigma))
+
+exp_updown = np.vectorize(_exp_updown)
+
 def overlap(a, b, nq):
     """
     Determines the overlap between two `nq`-qubit quantum 
