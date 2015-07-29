@@ -111,7 +111,23 @@ class Simulation(object):
                     im_pt = expm_At_B[:, 2 * k + 1].flatten()
                     self.amplitudes[:, k, i] = convolve(re_pt, u_t * dt)[:nt]
                     self.amplitudes[:, k, i] += 1j * convolve(im_pt, u_t * dt)[:nt]
-                
+
+    def outputs(self):
+        """
+        Outputs from the cavity. 
+        """
+        if self.amplitudes is None:
+            self.set_amplitudes()
+        alpha = self.amplitudes
+        
+        nq, nm, ns, nt = self.sizes()
+        kappa = self.apparatus.kappa
+
+        alpha_outs = np.zeros((nt, ns), ut.cpx)
+        for tdx, k, i in product(range(nt), range(nm), range(ns)):
+            alpha_outs[tdx, i] += np.sqrt(kappa[k]) * alpha[tdx, k, i]
+        
+        return alpha_outs                
 
     def butterfly_plot(self, *args, **kwargs):
         """
@@ -123,16 +139,7 @@ class Simulation(object):
 
         e_max = max(self.pulse_fn(self.times))
 
-        if self.amplitudes is None:
-            self.set_amplitudes()
-        alpha = self.amplitudes
-        
-        nq, nm, ns, nt = self.sizes()
-        kappa = self.apparatus.kappa
-
-        alpha_outs = np.zeros((nt, ns), ut.cpx)
-        for tdx, k, i in product(range(nt), range(nm), range(ns)):
-            alpha_outs[tdx, i] += np.sqrt(kappa[k]) * alpha[tdx, k, i]
+        alpha_outs = self.outputs()
 
         for i in range(ns):
             sb.plt.plot(alpha_outs[:,i].real / e_max, alpha_outs[:,i].imag / e_max,
