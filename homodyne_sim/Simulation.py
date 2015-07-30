@@ -204,10 +204,12 @@ class Simulation(object):
         if real_only:
             self.measurement = self.measurement.real 
         if zs_only:
+            z_op = ut.all_zs(nq)
+            diag_vals = np.diag(z_op)
             for tdx in range(nt):
                 curr_rl = self.measurement[tdx, :, :].real
-                nrm = np.sqrt(np.trace(np.dot(curr_rl, ut.all_zs(nq))))
-                self.measurement[tdx, :, :].real = nrm * ut.all_zs(nq) / ns
+                mean_val = np.dot(np.diag(curr_rl), diag_vals) / ns
+                self.measurement[tdx, :, :] = mean_val * z_op + self.measurement[tdx, :, :].imag
         
         pass
 
