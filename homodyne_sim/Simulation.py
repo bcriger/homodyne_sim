@@ -136,6 +136,7 @@ class Simulation(object):
         computational basis state of the register. Passes additional 
         arguments/keyword arguments straight to the plotting function.
         """
+        _, _, ns, _ = self.sizes()
 
         e_max = max(self.pulse_fn(self.times))
 
