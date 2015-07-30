@@ -183,7 +183,7 @@ class Simulation(object):
         the part of the operator proportional to the parity operator
         is returned. 
         """
-        _, nm, ns, nt = self.sizes()
+        nq, nm, ns, nt = self.sizes()
 
         if self.amplitudes is None:
             self.set_amplitudes()
@@ -204,7 +204,10 @@ class Simulation(object):
         if real_only:
             self.measurement = self.measurement.real 
         if zs_only:
-            pass
+            for tdx in range(nt):
+                curr_rl = self.measurement[tdx, :, :].real
+                nrm = np.sqrt(np.trace(np.dot(curr_rl, ut.all_zs(nq))))
+                self.measurement[tdx, :, :].real = nrm * ut.all_zs(nq) / ns
         
         pass
 
