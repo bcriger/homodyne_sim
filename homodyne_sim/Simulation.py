@@ -50,10 +50,18 @@ class Simulation(object):
         nt = len(self.times)
         return nq, nm, ns, nt
 
-    def set_amplitudes(self, integrator='zvode'):
+    def set_amplitudes(self, integrator='zvode', reals_perfect=False, 
+                        imags_perfect=False):
         """
         Formulates and solves deterministic DEs governing coherent 
-        states in cavity modes.
+        states in cavity modes. An optional integrator keyword 
+        determines the method by which this solution is accomplished. 
+        Differences in accuracy between these methods may result in 
+        errors being propagated forward to the SME solver. Careful 
+        examination of the cavity amplitudes is encouraged. There are 
+        two additional options, `reals_perfect` and `imags_perfect`. 
+        These options help us to simulate parity measurements, they 
+        will not be useful for other measurement operators. 
         """
         #Sanitize
         integrator = integrator.lower()
@@ -62,7 +70,7 @@ class Simulation(object):
             raise ValueError("Integrator must be one of "
                 "{}".format(integrator_list))
         
-        _, nm, ns, nt = self.sizes()
+        nq, nm, ns, nt = self.sizes()
            
         if integrator == 'odeint':
             alpha_dot = lambda alpha, t: _d_alpha_dt(alpha, t, self)
@@ -111,6 +119,17 @@ class Simulation(object):
                     im_pt = expm_At_B[:, 2 * k + 1].flatten()
                     self.amplitudes[:, k, i] = convolve(re_pt, u_t * dt)[:nt]
                     self.amplitudes[:, k, i] += 1j * convolve(im_pt, u_t * dt)[:nt]
+        
+        diag_z = np.diag(ut.all_zs(nq))
+        if reals_perfect:
+            for k, i in product(range(nm), range(ns)):
+                self.amplitudes[:, k, i].real = diag_z[i].real * self.amplitudes[:, k, 0].real
+
+        if imags_perfect:
+            for k, i in product(range(nm), range(ns)):
+                self.amplitudes[:, k, i].imag = self.amplitudes[:, k, 0].imag
+
+        pass
 
     def outputs(self):
         """
@@ -208,7 +227,7 @@ class Simulation(object):
             diag_vals = np.diag(z_op)
             for tdx in range(nt):
                 curr_rl = self.measurement[tdx, :, :].real
-                mean_val = np.dot(np.diag(curr_rl), diag_vals) / ns
+                mean_val = np.real(np.dot(np.diag(curr_rl), diag_vals) / ns)
                 self.measurement[tdx, :, :] = mean_val * z_op + self.measurement[tdx, :, :].imag
         
         pass
