@@ -148,7 +148,7 @@ class Simulation(object):
         
         return alpha_outs                
 
-    def butterfly_plot(self, *args, **kwargs):
+    def butterfly_plot(self, idxs=None, *args, **kwargs):
         """
         plots the `alpha_out`s corresponding to the conditional 
         amplitudes of the cavity coherent states depending on the 
@@ -160,12 +160,16 @@ class Simulation(object):
         e_max = max(self.pulse_fn(self.times))
 
         alpha_outs = self.outputs()
-
-        for i in range(ns):
+        
+        idx_iter = idxs if idxs else range(ns)
+        
+        for i in idx_iter:
             sb.plt.plot(alpha_outs[:,i].real / e_max, alpha_outs[:,i].imag / e_max,
                         *args, **kwargs)
         
         sb.plt.title(r"$ \alpha_{\mathrm{out}}/\epsilon_{\mathrm{max}} $")
+        sb.plt.xlabel(r"$\mathrm{Re} \left( \alpha_{\mathrm{out}}\right)$")
+        sb.plt.ylabel(r"$\mathrm{Im} \left( \alpha_{\mathrm{out}}\right)$")
         sb.plt.show()
         pass
     
