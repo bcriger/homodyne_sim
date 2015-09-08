@@ -9,6 +9,8 @@ from math import factorial as fctrl
 from operator import mul
 from glob import glob as glob #glob
 import cPickle as pkl
+import scipy as sp
+import scipy.stats
 
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
@@ -806,3 +808,12 @@ def add_arrow_to_line2D(
         axes.add_patch(p)
         arrows.append(p)
     return arrows
+
+#stackoverflow.com/q/15033511
+def mean_confidence_interval(data, confidence=0.95):
+    a = 1.0*np.array(data)
+    n = len(a)
+    m, se = np.mean(a), scipy.stats.sem(a)
+    h = se * sp.stats.t._ppf((1+confidence)/2., n-1)
+    return m, m-h, m+h
+
