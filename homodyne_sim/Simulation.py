@@ -15,8 +15,17 @@ from os import getcwd
 from math import fsum
 #import progressbar as pb #some day . . .
 import utils as ut
+import sde_solve as ss #For unified_run stepper
 
 __all__ = ['Simulation', '_platen_15_rho_step', '_non_lin_meas']
+
+steppers = [_implicit_platen_15_rho_step, _platen_15_rho_step,
+             _mod_euler_maruyama_rho_step, _milstein_rho_step,
+             _implicit_milstein_rho_step, _implicit_RK1_rho_step,
+             _implicit_two_rho_step, _implicit_15_two_rho_step,
+             _euler_maruyama_rho_step]
+        
+stpr_dict = dict(zip(ut._stepper_list, steppers))
 
 class Simulation(object):
     """
@@ -387,11 +396,8 @@ class Simulation(object):
                      the linear action. Optional; default True.
         :type n_ln: bool 
         """
+        _stepper_check(stepper)
         
-        if stepper not in ut._stepper_list:
-            raise ValueError("stepper must be one of "
-                                "{}.".format(ut._stepper_list))
-
         if seed:
             np.random.seed(seed)
 
@@ -406,37 +412,15 @@ class Simulation(object):
             if self.lin_meas_spr is None:
                 self.set_lin_meas_spr()
 
-        #use function calls to get sizes of output
-        if step_fn is not None:
-            stp_shp = step_fn(self.times[0], rho_init.copy(), 0.).shape
-            step_results = np.empty((n_runs, nt) + stp_shp, 
-                                    dtype=ut.cpx)
-        else:
-            step_results = None
-
-        if final_fn is not None:
-            lst_shp = final_fn(rho_init.copy()).shape
-            final_results = np.empty((n_runs, ) + lst_shp, dtype=ut.cpx)
-        else:
-            final_results = None
-
-        if avg_fn is not None:
-            avg_shp = avg_fn(rho_init.copy()).shape
-            avg_results = np.zeros(avg_shp, dtype=ut.cpx)
-        else:
-            avg_results = None
+        step_results = _call_init(lambda x: step_fn(0., x., 0), rho_init,
+                                    pre_shape = (n_runs, nt))
+        final_results = _call_init(final_fn, rho_init,
+                                    pre_shape = (n_runs, ))
+        avg_results = _call_init(avg_fn, rho_init)
 
         step_kwargs = {'rho_is_vec': rho_is_vec, 
                         'check_herm' : check_herm,
                         'n_ln' : n_ln}
-        
-        steppers = [_implicit_platen_15_rho_step, _platen_15_rho_step,
-                     _mod_euler_maruyama_rho_step, _milstein_rho_step,
-                     _implicit_milstein_rho_step, _implicit_RK1_rho_step,
-                     _implicit_two_rho_step, _implicit_15_two_rho_step,
-                     _euler_maruyama_rho_step]
-        
-        stpr_dict = dict(zip(ut._stepper_list, steppers))
                 
         for run in xrange(n_runs):
             rho = np.copy(rho_init)
@@ -529,6 +513,60 @@ class Simulation(object):
                 - 0.5 * matrix_power(self.lin_meas_spr[tdx, :, :], 2)))
 
         return exponents
+
+    def unified_run(self, n_runs, rho_init, step_fn=None, final_fn=None, avg_fn=None, flnm=None,
+            check_herm=False, seed=None, stepper='ip15', dW_batch=None, n_ln=True):
+        """
+        September 8, 2015
+        New (temporary) method to run simulations. A large number of 
+        timesteps is required to ensure the stability of the stochastic
+        algorithm, so we need a run method which doesn't rely on having
+        amplitudes/lindbladians/stochastic operators pre-computed and
+        stored. Here, we proceed step-by-step, storing `n_runs` density
+        matrices instead of `n_steps` superoperators. This should drop
+        the RAM requirements by a bit.  
+        """
+        _stepper_check(stepper)
+
+        if seed:
+            np.random.seed(seed)
+
+        nq, nm, ns, nt = self.sizes()
+        #Set up rho array
+        rhos = np.zeros((n_runs,)+rho_init.shape, dtype=ut.cpx)
+        
+        #Output arrays
+        step_results = _call_init(lambda x: step_fn(0., x., 0), rho_init,
+                                    pre_shape = (n_runs, nt))
+        final_results = _call_init(final_fn, rho_init,
+                                    pre_shape = (n_runs, ))
+        avg_results = _call_init(avg_fn, rho_init)
+
+        #Set up temporary arrays, alpha, lindbladian, etc.
+        alpha_0 = np.zeros((nm * ns,), dtype=ut.cpx)
+
+        #Set up steppers, both deterministic and stochastic
+        alpha_dot = lambda t, alpha: _d_alpha_dt(alpha, t, self)
+
+        stepper = ode(alpha_dot).set_integrator('zvode', atol=10**-14, rtol=10.**-14)
+        stepper.set_initial_value(alpha_0, self.times[0])
+        amplitudes = alpha_0.reshape((nm,ns))
+        
+        #main loop
+        for tdx in xrange(nt - 1):
+            #record callbacks
+
+            #figure out amplitudes
+            if stepper.successful():
+                stepper.integrate(self.times[tdx])
+                amplitudes = stepper.y.reshape((nm,ns))
+            
+            #get lindbladian, stochastic operator
+
+            #functionalise for call to ss stepper
+            for run in xrange(n_runs):
+
+        pass
 
 def _platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
                     check_herm=False, n_ln=True):
@@ -1036,3 +1074,24 @@ def _convolve(arr_1, arr_2):
                             for m in range(len(arr_1))
                         ])
                 for n in range(len(arr_1) + len(arr_2) + 1)])
+
+def _stepper_check(stepper):
+    if stepper not in ut._stepper_list:
+        raise ValueError("stepper must be one of "
+                            "{}.".format(ut._stepper_list))
+    else:
+        pass
+
+def _call_init(func, arg, pre_shape=()):
+    """
+    Initialises an array depending on a function call. There are 
+    callback functions in the simulation, so this is necessary.
+    """
+    if func is not None:
+        result_shape = func(arg).shape
+        output = np.empty(pre_shape + result_shape, 
+                            dtype=ut.cpx)
+    else:
+        output = None
+
+    return output
