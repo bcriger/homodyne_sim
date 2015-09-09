@@ -588,7 +588,7 @@ class Simulation(object):
             if step_fn is not None:
                 step_results[:, tdx, ...] = \
                     (step_fn(self.times[tdx], rho.copy(), dWs[run])
-                        for run, rho in enumerate(rhos)))
+                        for run, rho in enumerate(rhos))
             
             #figure out amplitudes
             if det_step.successful():
