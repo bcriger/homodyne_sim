@@ -19,14 +19,6 @@ import sde_solve as ss #For unified_run stepper
 
 __all__ = ['Simulation', '_platen_15_rho_step', '_non_lin_meas']
 
-steppers = [_implicit_platen_15_rho_step, _platen_15_rho_step,
-             _mod_euler_maruyama_rho_step, _milstein_rho_step,
-             _implicit_milstein_rho_step, _implicit_RK1_rho_step,
-             _implicit_two_rho_step, _implicit_15_two_rho_step,
-             _euler_maruyama_rho_step]
-        
-stpr_dict = dict(zip(ut._stepper_list, steppers))
-
 class Simulation(object):
     """
     Handles homodyne measurement simulations. Stores the time-dependent
@@ -543,6 +535,8 @@ class Simulation(object):
 
         #Set up rho array
         rhos = np.zeros((n_runs,) + rho_init.shape, dtype=ut.cpx)
+        for run in xrange(n_runs):
+            rhos[run, ...] = rho_init.copy()
         
         #Output arrays
         step_results = _call_init(lambda x: step_fn(0., x, 0), rho_init,
@@ -553,7 +547,7 @@ class Simulation(object):
 
         #Set up temporary arrays, alpha, lindbladian, etc.
         alpha_0 = np.zeros((nm * ns,), dtype=ut.cpx)
-        coupling_lindbladian = np.zeros((ns, ns), ut.cpx)
+        coupling_lindbladian = np.zeros((ns, ns), dtype=ut.cpx)
         lindblad_spr = np.zeros((ns**2, ns**2), dtype=ut.cpx)
         lin_meas_spr = np.zeros((ns**2, ns**2), dtype=ut.cpx)
 
@@ -564,12 +558,12 @@ class Simulation(object):
         big_drift += -1j * (np.kron(id_mat, drift_h) - 
                             np.kron(drift_h.transpose(), id_mat))
 
-        for op in apparatus.jump_ops:
+        for op in self.apparatus.jump_ops:
             big_drift += np.kron(op.conj(), op)
             big_drift -= 0.5 * np.kron(id_mat, np.dot(op.conj().transpose(), op))
             big_drift -= 0.5 * np.kron(np.dot(op.transpose(), op.conj()), id_mat)
         
-        c_phi = np.zeros((ns, ns), ut.cpx)
+        c_phi = np.zeros((ns, ns), dtype=ut.cpx)
 
         #Set up steppers, both deterministic and stochastic
         alpha_dot = lambda t, alpha: _d_alpha_dt(alpha, t, self)
@@ -586,14 +580,15 @@ class Simulation(object):
             dWs = np.random.randn(n_runs) * np.sqrt(dt)
 
             if step_fn is not None:
-                step_results[:, tdx, ...] = \
-                    (step_fn(self.times[tdx], rho.copy(), dWs[run])
-                        for run, rho in enumerate(rhos))
+                for run in xrange(n_runs):
+                    step_results[run, tdx, ...] =  step_fn(self.times[tdx],
+                                                            rhos[run], dWs[run])
             
             #figure out amplitudes
-            if det_step.successful():
-                det_step.integrate(self.times[tdx])
-                alpha = det_step.y.reshape((nm,ns))
+            alpha = det_step.y.reshape((nm,ns))
+            if tdx > 0:
+                if det_step.successful():
+                    det_step.integrate(self.times[tdx])
             
             #get lindbladian, stochastic operator
             for i, j in product(range(ns), repeat=2):
@@ -619,20 +614,20 @@ class Simulation(object):
             stoc_f = lambda t, rho: _non_lin_meas(lin_meas_spr, rho)
             for run in xrange(n_runs):
                 rhos[run, ...] = ss.platen_15_step(self.times[tdx], 
-                                                    rho, det_f, stoc_f,
-                                                    dt, dWs[run])
+                                                rhos[run, ...].copy(), det_f, stoc_f,
+                                                dt, dWs[run])
 
         if step_fn is not None:
             last_dW = np.random.randn(n_runs) * np.sqrt(dt)
-            step_results[:, -1, ...] = \
-                (step_fn(self.times[-1], rho, last_dW[run])
-                    for run, rho in enumerate(rhos))
+            for run in xrange(n_runs):
+                step_results[run, -1, ...] =  step_fn(self.times[tdx],
+                                                    rhos[run], dWs[run])
 
         if final_fn is not None:
-            final_results = np.array(final_fn(rho.copy()) for rho in rhos)
+            final_results = np.array([final_fn(rho) for rho in rhos])
 
         if avg_fn is not None:
-            avg_results = sum( avg_fn(rho.copy()) for rho in rhos ) / n_runs
+            avg_results = np.sum( [avg_fn(rho) for rho in rhos], axis=0 ) / n_runs
         
         if flnm is None:
             return final_results, step_results, avg_results
@@ -643,6 +638,7 @@ class Simulation(object):
                         'final_results': final_results,
                         'step_results': step_results,
                         'avg_results': avg_results}
+            
             with open('/'.join([getcwd(),flnm]), 'w') as phil:
                 pkl.dump(sim_dict, phil)
 
@@ -1173,3 +1169,11 @@ def _call_init(func, arg, pre_shape=()):
         output = None
 
     return output
+
+steppers = [_implicit_platen_15_rho_step, _platen_15_rho_step,
+             _mod_euler_maruyama_rho_step, _milstein_rho_step,
+             _implicit_milstein_rho_step, _implicit_RK1_rho_step,
+             _implicit_two_rho_step, _implicit_15_two_rho_step,
+             _euler_maruyama_rho_step]
+        
+stpr_dict = dict(zip(ut._stepper_list, steppers))
