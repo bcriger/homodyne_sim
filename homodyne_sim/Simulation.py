@@ -545,7 +545,7 @@ class Simulation(object):
         rhos = np.zeros((n_runs,) + rho_init.shape, dtype=ut.cpx)
         
         #Output arrays
-        step_results = _call_init(lambda x: step_fn(0., x., 0), rho_init,
+        step_results = _call_init(lambda x: step_fn(0., x, 0), rho_init,
                                     pre_shape = (n_runs, nt))
         final_results = _call_init(final_fn, rho_init,
                                     pre_shape = (n_runs, ))
