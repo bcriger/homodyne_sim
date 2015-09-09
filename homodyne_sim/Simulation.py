@@ -515,7 +515,7 @@ class Simulation(object):
         algorithm, so we need a run method which doesn't rely on having
         amplitudes/lindbladians/stochastic operators pre-computed and
         stored. Here, we proceed step-by-step, storing `n_runs` density
-        matrices instead of `n_steps` superoperators. This should drop
+        matrices instead of `n_steps` superoperators. This should dropc_phi = np.zeros((ns, ns), dtype=ut.cpx)
         the RAM requirements by a large factor.  
         """
         _stepper_check(stepper)
@@ -581,7 +581,7 @@ class Simulation(object):
             if step_fn is not None:
                 #FIXME: Come up with the actual way to call these functions
                 #in the event of unified simulation
-                if step_fn == hs.unified_photocurrent:
+                if step_fn == ut.unified_photocurrent:
                     for run in xrange(n_runs):
                         step_results[run, tdx, ...] =  step_fn(self.times[tdx],
                                                             rhos[run], dWs[run],
@@ -626,7 +626,7 @@ class Simulation(object):
 
         if step_fn is not None:
             last_dW = np.random.randn(n_runs) * np.sqrt(dt)
-            if step_fn == hs.unified_photocurrent:
+            if step_fn == ut.unified_photocurrent:
                 for run in xrange(n_runs):
                     step_results[run, tdx, ...] =  step_fn(self.times[tdx],
                                                         rhos[run], dWs[run],
