@@ -32,7 +32,7 @@ __all__ = ['cpx', 'id_2', 'YY', 'sigma_z', 'sigma_m' , 'vec2mat',
             '_stepper_list', 'amplitudes_1', 'def_poly_exp_int', 
             'avg_data', 'sum_step_data', 'post_selected', 'pq_up',
             'exp_up', 'exp_updown', 'add_arrow_to_line2D', 
-            'mean_confidence_interval']
+            'mean_confidence_interval', 'unified_photocurrent']
 
 #cpx = np.complex64
 cpx = np.complex128
