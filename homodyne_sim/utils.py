@@ -297,6 +297,18 @@ def alt_photocurrent(t, rho, dW, sim):
         rho_c = rho
     return op_trace(np.dot(c, rho_c)) * dt + dW
 
+def unified_photocurrent(t, rho, dW, sim, c):
+    """
+    Calculates the photocurrent without needing a giant array for 
+    sim.measurement
+    """
+    dt = sim.times[1] - sim.times[0]
+    if len(rho.shape) == 1:
+        rho_c = vec2mat(rho)
+    else:
+        rho_c = rho
+    return np.trace(np.dot(c + c.conj().transpose(), rho_c)) * dt + dW
+
 def concurrence(rho):
     r"""
     wikipedia.org/wiki/Concurrence_%28quantum_computing%29#Definition

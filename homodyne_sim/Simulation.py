@@ -580,8 +580,16 @@ class Simulation(object):
             dWs = np.random.randn(n_runs) * np.sqrt(dt)
 
             if step_fn is not None:
-                for run in xrange(n_runs):
-                    step_results[run, tdx, ...] =  step_fn(self.times[tdx],
+                #FIXME: Come up with the actual way to call these functions
+                #in the event of unified simulation
+                if step_fn == hs.unified_photocurrent:
+                    for run in xrange(n_runs):
+                        step_results[run, tdx, ...] =  step_fn(self.times[tdx],
+                                                            rhos[run], dWs[run],
+                                                            self, c_phi)
+                else:
+                    for run in xrange(n_runs):
+                        step_results[run, tdx, ...] =  step_fn(self.times[tdx],
                                                             rhos[run], dWs[run])
             
             #figure out amplitudes
