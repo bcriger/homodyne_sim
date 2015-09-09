@@ -539,7 +539,8 @@ class Simulation(object):
             rhos[run, ...] = rho_init.copy()
         
         #Output arrays
-        step_results = _call_init(lambda x: step_fn(0., x, 0), rho_init,
+        c_phi = np.zeros((ns, ns), dtype=ut.cpx)
+        step_results = _call_init(lambda x: step_fn(0., x, 0, self, c_phi), rho_init,
                                     pre_shape = (n_runs, nt))
         final_results = _call_init(final_fn, rho_init,
                                     pre_shape = (n_runs, ))
@@ -562,8 +563,6 @@ class Simulation(object):
             big_drift += np.kron(op.conj(), op)
             big_drift -= 0.5 * np.kron(id_mat, np.dot(op.conj().transpose(), op))
             big_drift -= 0.5 * np.kron(np.dot(op.transpose(), op.conj()), id_mat)
-        
-        c_phi = np.zeros((ns, ns), dtype=ut.cpx)
 
         #Set up steppers, both deterministic and stochastic
         alpha_dot = lambda t, alpha: _d_alpha_dt(alpha, t, self)
@@ -627,9 +626,15 @@ class Simulation(object):
 
         if step_fn is not None:
             last_dW = np.random.randn(n_runs) * np.sqrt(dt)
-            for run in xrange(n_runs):
-                step_results[run, -1, ...] =  step_fn(self.times[tdx],
-                                                    rhos[run], dWs[run])
+            if step_fn == hs.unified_photocurrent:
+                for run in xrange(n_runs):
+                    step_results[run, tdx, ...] =  step_fn(self.times[tdx],
+                                                        rhos[run], dWs[run],
+                                                        self, c_phi)
+            else:
+                for run in xrange(n_runs):
+                    step_results[run, tdx, ...] =  step_fn(self.times[tdx],
+                                                        rhos[run], dWs[run])
 
         if final_fn is not None:
             final_results = np.array([final_fn(rho) for rho in rhos])
