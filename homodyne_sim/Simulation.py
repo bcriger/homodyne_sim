@@ -515,7 +515,7 @@ class Simulation(object):
         return exponents
 
     def unified_run(self, n_runs, rho_init, step_fn=None, final_fn=None, avg_fn=None, flnm=None,
-            check_herm=False, seed=None, stepper='ip15', dW_batch=None, n_ln=True):
+            check_herm=False, seed=None, stepper='p15', dW_batch=None, n_ln=True):
         """
         September 8, 2015
         New (temporary) method to run simulations. A large number of 
@@ -524,16 +524,25 @@ class Simulation(object):
         amplitudes/lindbladians/stochastic operators pre-computed and
         stored. Here, we proceed step-by-step, storing `n_runs` density
         matrices instead of `n_steps` superoperators. This should drop
-        the RAM requirements by a bit.  
+        the RAM requirements by a large factor.  
         """
         _stepper_check(stepper)
+
+        if stepper != 'p15':
+            raise NotImplementedError("Platen Order-1.5 "
+                "solver is required. Set stepper='p15'.")
 
         if seed:
             np.random.seed(seed)
 
+        #required parameters
         nq, nm, ns, nt = self.sizes()
+        chi = self.apparatus.chi
+        eta, phi = self.apparatus.eta, self.apparatus.phi
+        kappa = self.apparatus.kappa
+
         #Set up rho array
-        rhos = np.zeros((n_runs,)+rho_init.shape, dtype=ut.cpx)
+        rhos = np.zeros((n_runs,) + rho_init.shape, dtype=ut.cpx)
         
         #Output arrays
         step_results = _call_init(lambda x: step_fn(0., x., 0), rho_init,
@@ -544,29 +553,98 @@ class Simulation(object):
 
         #Set up temporary arrays, alpha, lindbladian, etc.
         alpha_0 = np.zeros((nm * ns,), dtype=ut.cpx)
+        coupling_lindbladian = np.zeros((ns, ns), ut.cpx)
+        lindblad_spr = np.zeros((ns**2, ns**2), dtype=ut.cpx)
+        lin_meas_spr = np.zeros((ns**2, ns**2), dtype=ut.cpx)
+
+        drift_h = self.apparatus.drift_hamiltonian
+        id_mat = np.eye(ns, dtype=ut.cpx)
+        big_drift = np.zeros((ns**2, ns**2), dtype=ut.cpx)
+
+        big_drift += -1j * (np.kron(id_mat, drift_h) - 
+                            np.kron(drift_h.transpose(), id_mat))
+
+        for op in apparatus.jump_ops:
+            big_drift += np.kron(op.conj(), op)
+            big_drift -= 0.5 * np.kron(id_mat, np.dot(op.conj().transpose(), op))
+            big_drift -= 0.5 * np.kron(np.dot(op.transpose(), op.conj()), id_mat)
+        
+        c_phi = np.zeros((ns, ns), ut.cpx)
 
         #Set up steppers, both deterministic and stochastic
         alpha_dot = lambda t, alpha: _d_alpha_dt(alpha, t, self)
 
-        stepper = ode(alpha_dot).set_integrator('zvode', atol=10**-14, rtol=10.**-14)
-        stepper.set_initial_value(alpha_0, self.times[0])
-        amplitudes = alpha_0.reshape((nm,ns))
+        det_step = ode(alpha_dot).set_integrator('zvode', atol=10**-14, rtol=10.**-14)
+        det_step.set_initial_value(alpha_0, self.times[0])
+        alpha = alpha_0.reshape((nm,ns))
         
+        dt = self.times[1] - self.times[0] #only constant timesteps work anyway
+
         #main loop
         for tdx in xrange(nt - 1):
             #record callbacks
+            dWs = np.random.randn(n_runs) * np.sqrt(dt)
 
+            if step_fn is not None:
+                step_results[:, tdx, ...] = \
+                    (step_fn(self.times[tdx], rho.copy(), dWs[run])
+                        for run, rho in enumerate(rhos)))
+            
             #figure out amplitudes
-            if stepper.successful():
-                stepper.integrate(self.times[tdx])
-                amplitudes = stepper.y.reshape((nm,ns))
+            if det_step.successful():
+                det_step.integrate(self.times[tdx])
+                alpha = det_step.y.reshape((nm,ns))
             
             #get lindbladian, stochastic operator
+            for i, j in product(range(ns), repeat=2):
+                coupling_lindbladian[i, j] = 0.
+                for k, l in product(range(nm), range(nq)):
+                    coupling_lindbladian[i, j] += -1j * chi[k, l] * \
+                        np.conj(alpha[k, j]) * alpha[k, i] * \
+                        (ut.bt_sn(i, l, nq) - ut.bt_sn(j, l, nq))
 
+            lindblad_spr = big_drift.copy()
+            for ddx, value in enumerate(ut.mat2vec(coupling_lindbladian).flatten()):
+                lindblad_spr[ddx, ddx] = big_drift[ddx, ddx] + value
+            
+            for i in range(ns):
+                c_phi[i, i] = sum(np.sqrt(kappa[k]) * alpha[k, i]
+                                    for k in range(nm))
+
+            c_phi *= np.sqrt(eta) * np.exp(-1j * phi)
+
+            lin_meas_spr = np.kron(id_mat, c_phi) + np.kron(c_phi.conj(), id_mat)
             #functionalise for call to ss stepper
+            det_f = lambda t, rho: np.dot(lindblad_spr, rho)
+            stoc_f = lambda t, rho: _non_lin_meas(lin_meas_spr, rho)
             for run in xrange(n_runs):
+                rhos[run, ...] = ss.platen_15_step(self.times[tdx], 
+                                                    rho, det_f, stoc_f,
+                                                    dt, dWs[run])
 
-        pass
+        if step_fn is not None:
+            last_dW = np.random.randn(n_runs) * np.sqrt(dt)
+            step_results[:, -1, ...] = \
+                (step_fn(self.times[-1], rho, last_dW[run])
+                    for run, rho in enumerate(rhos))
+
+        if final_fn is not None:
+            final_results = np.array(final_fn(rho.copy()) for rho in rhos)
+
+        if avg_fn is not None:
+            avg_results = sum( avg_fn(rho.copy()) for rho in rhos ) / n_runs
+        
+        if flnm is None:
+            return final_results, step_results, avg_results
+        else:
+            sim_dict = {'apparatus': self.apparatus,
+                        'times': self.times,
+                        'pulse_shape': self.pulse_fn(self.times),
+                        'final_results': final_results,
+                        'step_results': step_results,
+                        'avg_results': avg_results}
+            with open('/'.join([getcwd(),flnm]), 'w') as phil:
+                pkl.dump(sim_dict, phil)
 
 def _platen_15_rho_step(sim, tdx, rho, dt, dW, copy=True, rho_is_vec=True,
                     check_herm=False, n_ln=True):
