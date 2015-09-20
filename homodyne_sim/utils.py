@@ -297,7 +297,7 @@ def alt_photocurrent(t, rho, dW, sim):
         rho_c = rho
     return op_trace(np.dot(c, rho_c)) * dt + dW
 
-def unified_photocurrent(t, rho, dW, sim, c):
+def unified_photocurrent(t, rho, dW, sim, c, inc_dW=True):
     """
     Calculates the photocurrent without needing a giant array for 
     sim.measurement
@@ -307,7 +307,9 @@ def unified_photocurrent(t, rho, dW, sim, c):
         rho_c = vec2mat(rho)
     else:
         rho_c = rho
-    return np.trace(np.dot(c + c.conj().transpose(), rho_c)) * dt + dW
+    meas_val = np.trace(np.dot(c + c.conj().transpose(), rho_c))
+    return meas_val * dt + dW if inc_dW else meas_val * dt
+         
 
 def concurrence(rho):
     r"""

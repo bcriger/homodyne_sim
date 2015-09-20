@@ -505,9 +505,11 @@ class Simulation(object):
                 - 0.5 * matrix_power(self.lin_meas_spr[tdx, :, :], 2)))
 
         return exponents
-
-    def unified_run(self, n_runs, rho_init, step_fn=None, final_fn=None, avg_fn=None, flnm=None,
-            check_herm=False, seed=None, stepper='p15', dW_batch=None, n_ln=True):
+    #TODO: Fix massive arglist here
+    def unified_run(self, n_runs, rho_init, step_fn=None, 
+                    final_fn=None, avg_step_fn=None, avg_final_fn=None,
+                    flnm=None, check_herm=False, seed=None, 
+                    stepper='p15', dW_batch=None, n_ln=True, pass_self_c_phi=False):
         """
         September 8, 2015
         New (temporary) method to run simulations. A large number of 
@@ -542,9 +544,11 @@ class Simulation(object):
         c_phi = np.zeros((ns, ns), dtype=ut.cpx)
         step_results = _call_init(lambda x: step_fn(0., x, 0, self, c_phi), rho_init,
                                     pre_shape = (n_runs, nt))
+        avg_step_results = _call_init(lambda x: avg_step_fn(0., x, 0, self, c_phi), rho_init,
+                                    pre_shape = (nt,))
         final_results = _call_init(final_fn, rho_init,
                                     pre_shape = (n_runs, ))
-        avg_results = _call_init(avg_fn, rho_init)
+        avg_final_results = _call_init(avg_final_fn, rho_init)
 
         #Set up temporary arrays, alpha, lindbladian, etc.
         alpha_0 = np.zeros((nm * ns,), dtype=ut.cpx)
@@ -581,7 +585,7 @@ class Simulation(object):
             if step_fn is not None:
                 #FIXME: Come up with the actual way to call these functions
                 #in the event of unified simulation
-                if step_fn == ut.unified_photocurrent:
+                if pass_self_c_phi:
                     for run in xrange(n_runs):
                         step_results[run, tdx, ...] =  step_fn(self.times[tdx],
                                                             rhos[run], dWs[run],
@@ -590,6 +594,20 @@ class Simulation(object):
                     for run in xrange(n_runs):
                         step_results[run, tdx, ...] =  step_fn(self.times[tdx],
                                                             rhos[run], dWs[run])
+            #FIXME: Repetition
+            if avg_step_fn is not None:
+                #FIXME: Come up with the actual way to call these functions
+                #in the event of unified simulation
+                if pass_self_c_phi:
+                    avg_step_results[tdx, ...] = np.mean([avg_step_fn(self.times[tdx],
+                                                            rhos[run], dWs[run],
+                                                            self, c_phi) for run in range(n_runs)],
+                                                            axis=0)
+                else:
+                    avg_step_results[tdx, ...] = np.mean([avg_step_fn(self.times[tdx],
+                                                            rhos[run], dWs[run]) 
+                                                            for run in range(n_runs)],
+                                                            axis=0)
             
             #figure out amplitudes
             alpha = det_step.y.reshape((nm,ns))
@@ -628,29 +646,45 @@ class Simulation(object):
             last_dW = np.random.randn(n_runs) * np.sqrt(dt)
             if step_fn == ut.unified_photocurrent:
                 for run in xrange(n_runs):
-                    step_results[run, tdx, ...] =  step_fn(self.times[tdx],
+                    step_results[run, tdx, ...] = step_fn(self.times[tdx],
                                                         rhos[run], dWs[run],
                                                         self, c_phi)
             else:
                 for run in xrange(n_runs):
-                    step_results[run, tdx, ...] =  step_fn(self.times[tdx],
+                    step_results[run, tdx, ...] = step_fn(self.times[tdx],
                                                         rhos[run], dWs[run])
+        
+        if avg_step_fn is not None:
+            last_dW = np.random.randn(n_runs) * np.sqrt(dt)
+            if pass_self_c_phi:
+                for run in xrange(n_runs):
+                    avg_step_results[tdx, ...] = np.mean([avg_step_fn(self.times[tdx],
+                                                        rhos[run], dWs[run],
+                                                        self, c_phi) for run in range(n_runs)],
+                                                        axis=0)
+            else:
+                for run in xrange(n_runs):
+                    avg_step_results[tdx, ...] = np.mean([avg_step_fn(self.times[tdx],
+                                                        rhos[run], dWs[run]) 
+                                                        for run in range(n_runs)],
+                                                        axis=0)
 
         if final_fn is not None:
             final_results = np.array([final_fn(rho) for rho in rhos])
 
-        if avg_fn is not None:
-            avg_results = np.sum( [avg_fn(rho) for rho in rhos], axis=0 ) / n_runs
+        if avg_final_fn is not None:
+            avg_final_results = np.sum( [avg_final_fn(rho) for rho in rhos], axis=0 ) / n_runs
         
         if flnm is None:
-            return final_results, step_results, avg_results
+            return final_results, step_results, avg_final_results, avg_step_results
         else:
             sim_dict = {'apparatus': self.apparatus,
                         'times': self.times,
                         'pulse_shape': self.pulse_fn(self.times),
                         'final_results': final_results,
                         'step_results': step_results,
-                        'avg_results': avg_results}
+                        'avg_final_results': avg_final_results,
+                        'avg_step_results': avg_step_results}
             
             with open('/'.join([getcwd(),flnm]), 'w') as phil:
                 pkl.dump(sim_dict, phil)
