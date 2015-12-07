@@ -100,10 +100,18 @@ cnst_pulse = np.vectorize(lambda t, cnst: cnst)
 hat_pulse = np.vectorize(lambda t, cnst, t_on, t_off:
                             cnst if t_on < t < t_off else 0.)
 
+def _updown_sigmas(sigma):
+    assert not isinstance(sigma, basestring)
+    if hasattr(sigma, '__getitem__'):
+        sigma_tpl = sigma
+    else:
+        sigma_tpl = sigma, sigma
+    return sigma_tpl
+
 def arctan_updown(t, e_ss, sigma, t_on, t_off):
-    
-    return e_ss / np.pi * (np.arctan((t - t_on) / sigma) - 
-                            np.arctan((t - t_off) / sigma ))
+    sigma_up, sigma_down = _updown_sigmas(sigma)
+    return e_ss / np.pi * (np.arctan((t - t_on) / sigma_up) - 
+                            np.arctan((t - t_off) / sigma_down ))
 
 def arctan_up(t, e_ss, sigma, t_on):
     
@@ -111,9 +119,9 @@ def arctan_up(t, e_ss, sigma, t_on):
 
 
 def tanh_updown(t, e_ss, sigma, t_on, t_off):
-    
-    return e_ss / 2. * (np.tanh((t - t_on) / sigma) - 
-                            np.tanh((t - t_off) / sigma))
+    sigma_up, sigma_down = _updown_sigmas(sigma)
+    return e_ss / 2. * (np.tanh((t - t_on) / sigma_up) - 
+                            np.tanh((t - t_off) / sigma_down))
 
 def tanh_up(t, e_ss, sigma, t_on):
     
@@ -125,19 +133,20 @@ def _pq_updown(t, e_ss, sigma, t_on, t_off):
     behaviour; rising to e_ss with a switching time sigma, then 
     descending back to 0.
     """
-    if 0 <= t < t_on - 0.5 * sigma:
+    sigma_up, sigma_down = _updown_sigmas(sigma)
+    if 0 <= t < t_on - 0.5 * sigma_up:
         eps = 0.
-    elif t_on - 0.5 * sigma <= t < t_on:
-        eps = 2. * e_ss / sigma**2 * (t - t_on + 0.5 * sigma) ** 2
-    elif t_on <= t < t_on + 0.5 * sigma:
-        eps = -2. * e_ss / sigma**2 * (t - t_on - 0.5 * sigma) ** 2 + e_ss
-    elif t_on + 0.5 * sigma <= t < t_off - 0.5 * sigma:
+    elif t_on - 0.5 * sigma_up <= t < t_on:
+        eps = 2. * e_ss / sigma_up**2 * (t - t_on + 0.5 * sigma_up) ** 2
+    elif t_on <= t < t_on + 0.5 * sigma_up:
+        eps = -2. * e_ss / sigma_up**2 * (t - t_on - 0.5 * sigma_up) ** 2 + e_ss
+    elif t_on + 0.5 * sigma_up <= t < t_off - 0.5 * sigma_down:
         eps = e_ss
-    elif t_off - 0.5 * sigma <= t < t_off:
-        eps = -2. * e_ss / sigma**2 * (t - t_off + 0.5 * sigma) ** 2 + e_ss
-    elif t_off <= t < t_off + 0.5 * sigma:
-        eps = 2. * e_ss / sigma**2 * (t - t_off - 0.5 * sigma) ** 2
-    elif t_off + 0.5 * sigma <= t:
+    elif t_off - 0.5 * sigma_down <= t < t_off:
+        eps = -2. * e_ss / sigma_down**2 * (t - t_off + 0.5 * sigma_down) ** 2 + e_ss
+    elif t_off <= t < t_off + 0.5 * sigma_down:
+        eps = 2. * e_ss / sigma_down**2 * (t - t_off - 0.5 * sigma_down) ** 2
+    elif t_off + 0.5 * sigma_down <= t:
         eps = 0.
     else:
         raise ValueError("Some kind of float gap?")
@@ -182,10 +191,11 @@ def _exp_updown(t, e_ss, sigma, t_off):
     exponentially, then coming back down. Poor selection of parameters
     may result in discontinuity.
     """
+    sigma_up, sigma_down = _updown_sigmas(sigma)
     if t < t_off:
-        return e_ss * (1. - np.exp(-t / sigma))
+        return e_ss * (1. - np.exp(-t / sigma_up))
     else:
-        return e_ss * (np.exp(-(t - t_off) / sigma))
+        return e_ss * (np.exp(-(t - t_off) / sigma_down))
 
 exp_updown = np.vectorize(_exp_updown)
 
