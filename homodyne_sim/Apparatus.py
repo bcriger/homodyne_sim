@@ -41,12 +41,12 @@ class Apparatus(object):
                 raise e
         
         
-        #Take delta to define the number of qubits
+        #Take delta to define the number of modes
         self.nm = arg_dict['delta'].shape[0]
         
         #Take omega to define the number of qubits
         self.nq = arg_dict['omega'].shape[0]
-        self.ns = 2**self.nq #FIXME USE PROPERTY
+        self.ns = 2**self.nq #number of states FIXME USE PROPERTY
         
         #----Test shapes of other arguments to ensure consistency----#
         qubit_keys = ['gamma_1', 'gamma_phi']
