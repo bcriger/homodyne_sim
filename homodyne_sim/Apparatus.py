@@ -22,7 +22,12 @@ class Apparatus(object):
      + gamma_phi: intrinsic qubit dephasing rates  
      + purcell: cavity-qubit purcell factors  
      + eta: homodyne efficiency
-     + phi: homodyne phase  
+     + phi: homodyne phase
+
+    Important Note: It is assumed that all qubits are far-detuned, 
+    leading to the elimination of the first-order qubit-qubit coupling
+    Hamiltonian term and the reduction of the Purcell dissipator to 
+    independent T_1 on each qubit, as derived in Criger/DiVincenzo.
     """
 
     def __init__(self, omega, delta, chi, kappa, gamma_1, 
@@ -291,18 +296,20 @@ def _drift_h(app):
     returns the time-independent Hamiltonian.
     """
     hamiltonian = np.zeros((app.ns, app.ns), ut.cpx)
-    for l in range(app.nq):
-        lamb_shift = sum([app.chi[k, l] for k in range(app.nm)])
-        sigma_z_l = ut.single_op(ut.sigma_z, l, app.nq)
-        hamiltonian += 0.5 * (app.omega[l] + lamb_shift) * sigma_z_l
+    # In the rotating frame, this is always 0.
+    # for l in range(app.nq):
+    #     lamb_shift = sum([app.chi[k, l] for k in range(app.nm)])
+    #     sigma_z_l = ut.single_op(ut.sigma_z, l, app.nq)
+    #     hamiltonian += 0.5 * (app.omega[l] + lamb_shift) * sigma_z_l
     return hamiltonian 
 
 def _jump_op_lst(app):
     """
+    In the rotating frame, the Purcell rate just adds to the qubit 
+    damping.
     """
     return tuple(it.chain.from_iterable([_qubit_damping_ops(app),
-                                        _qubit_dephasing_ops(app),
-                                        _purcell_ops(app)]))
+                                        _qubit_dephasing_ops(app)]))
 def _qubit_damping_ops(app):
     """
     returns a tuple of the time-independent qubit amplitude damping
@@ -311,7 +318,10 @@ def _qubit_damping_ops(app):
     op_lst = []
     for l in range(app.nq):
         sigma_m_l = ut.single_op(ut.sigma_m, l, app.nq)
-        op_lst.append(np.sqrt(app.gamma_1[l]) * sigma_m_l)
+        damp_rate = app.gamma_1[l]
+        #purcell contribution in rotating frame
+        damp_rate += np.dot(np.sqrt(app.kappa), app.purcell[:, l]) ** 2
+        op_lst.append(np.sqrt(damp_rate) * sigma_m_l)
     return op_lst
 
 def _qubit_dephasing_ops(app):
@@ -328,14 +338,16 @@ def _purcell_ops(app):
     """
     Returns the Purcell damping operators (different from the regular 
     damping operators). All qubits damp out into common modes.
+    
+    Non-rotating frame; deprecated.
     """
     op_lst = []
-    for k in range(app.nm):
-        op = np.zeros((app.ns, app.ns), ut.cpx)
-        for l in range(app.nq):
-            sigma_m_l = ut.single_op(ut.sigma_m, l, app.nq)
-            op += app.purcell[k, l] * sigma_m_l
-        op *= np.sqrt(app.kappa[k])
-        op_lst.append(op)
+    # for k in range(app.nm):
+    #     op = np.zeros((app.ns, app.ns), ut.cpx)
+    #     for l in range(app.nq):
+    #         sigma_m_l = ut.single_op(ut.sigma_m, l, app.nq)
+    #         op += app.purcell[k, l] * sigma_m_l
+    #     op *= np.sqrt(app.kappa[k])
+    #     op_lst.append(op)
     return op_lst
 

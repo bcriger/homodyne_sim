@@ -198,7 +198,8 @@ class Simulation(object):
                         (ut.bt_sn(i, l, nq) - ut.bt_sn(j, l, nq))
         pass
 
-    def set_measurement(self, real_only=False, zs_only=False):
+    def set_measurement(self, real_only=False, zs_only=False,
+                                                phi_array=None):
         """
         Prepares a (1+2)-dimensional array which stores explicit 
         measurement operators. If the flag `real_only` is set to True,
@@ -213,7 +214,8 @@ class Simulation(object):
             self.set_amplitudes()
         alpha = self.amplitudes
 
-        eta, phi = self.apparatus.eta, self.apparatus.phi
+        eta = self.apparatus.eta
+        phi = phi_array if phi_array else self.apparatus.phi
         kappa = self.apparatus.kappa
 
         self.measurement = np.zeros((nt, ns, ns), ut.cpx)
@@ -517,7 +519,7 @@ class Simulation(object):
         algorithm, so we need a run method which doesn't rely on having
         amplitudes/lindbladians/stochastic operators pre-computed and
         stored. Here, we proceed step-by-step, storing `n_runs` density
-        matrices instead of `n_steps` superoperators. This should dropc_phi = np.zeros((ns, ns), dtype=ut.cpx)
+        matrices instead of `n_steps` superoperators. This should drop
         the RAM requirements by a large factor.  
         """
         _stepper_check(stepper)
