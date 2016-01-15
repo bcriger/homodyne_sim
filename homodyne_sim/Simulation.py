@@ -546,11 +546,12 @@ class Simulation(object):
         c_phi = np.zeros((ns, ns), dtype=ut.cpx)
         step_results = _call_init(lambda x: step_fn(0., x, 0, self, c_phi), rho_init,
                                     pre_shape = (n_runs, nt))
-        avg_step_results = _call_init(lambda x: avg_step_fn(0., x, 0, self, c_phi), rho_init,
-                                    pre_shape = (nt,))
         final_results = _call_init(final_fn, rho_init,
                                     pre_shape = (n_runs, ))
         avg_final_results = _call_init(avg_final_fn, rho_init)
+        if avg_step_fn is not None:
+            avg_step_results = _call_init(lambda x: avg_step_fn(0., x, 0, self, c_phi), rho_init,
+                                        pre_shape = (nt,))
 
         #Set up temporary arrays, alpha, lindbladian, etc.
         alpha_0 = np.zeros((nm * ns,), dtype=ut.cpx)
