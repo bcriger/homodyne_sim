@@ -552,6 +552,8 @@ class Simulation(object):
         if avg_step_fn is not None:
             avg_step_results = _call_init(lambda x: avg_step_fn(0., x, 0, self, c_phi), rho_init,
                                         pre_shape = (nt,))
+        else:
+            avg_step_results = None
 
         #Set up temporary arrays, alpha, lindbladian, etc.
         alpha_0 = np.zeros((nm * ns,), dtype=ut.cpx)
