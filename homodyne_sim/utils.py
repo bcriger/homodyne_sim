@@ -1,4 +1,4 @@
-import pylab as pl 
+# import pylab as pl 
 import numpy as np
 from numpy.random import rand
 from numpy.linalg import eig, eigvalsh
@@ -102,10 +102,10 @@ hat_pulse = np.vectorize(lambda t, cnst, t_on, t_off:
 
 def _updown_sigmas(sigma):
     assert not isinstance(sigma, basestring)
-    if hasattr(sigma, '__getitem__'):
+    if hasattr(sigma, '__iter__'):
         sigma_tpl = sigma
     else:
-        sigma_tpl = sigma, sigma
+        sigma_tpl = (sigma, sigma)
     return sigma_tpl
 
 def arctan_updown(t, e_ss, sigma, t_on, t_off):
