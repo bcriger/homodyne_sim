@@ -1,8 +1,22 @@
+from __future__ import absolute_import
+
+from sys import version_info
+PY2 = version_info.major == 2
+PY3 = version_info.major == 3
+
+if PY2:
+    from Apparatus import Apparatus
+    import utils as ut
+elif PY3:
+    from .Apparatus import Apparatus
+    from . import utils as ut
+else:
+    raise RuntimeError("Version of Python not recognized: {}".format(version_info))
+
 import numpy as np 
 from numpy.linalg import matrix_power
 from scipy.linalg import inv
 from scipy.integrate import ode
-from Apparatus import Apparatus
 from types import FunctionType
 from odeintw import odeintw
 from scipy.integrate import odeint, ode
@@ -10,11 +24,10 @@ from scipy.signal import fftconvolve as convolve
 from scipy.linalg import expm
 from itertools import product
 import seaborn as sb
-import cPickle as pkl
+import pickle as pkl
 from os import getcwd
 from math import fsum
 #import progressbar as pb #some day . . .
-import utils as ut
 import sde_solve as ss #For unified_run stepper
 
 __all__ = ['Simulation', '_platen_15_rho_step', '_non_lin_meas']
@@ -91,7 +104,7 @@ class Simulation(object):
         
             # stepper = ode(alpha_dot, jacobian).set_integrator('zvode', method='bdf', atol=10**-12, rtol=0.)
             # stepper = ode(alpha_dot, jacobian).set_integrator('zvode', atol=10**-14, rtol=10.**-14)
-            stepper = ode(alpha_dot).set_integrator('zvode', atol=10**-14, rtol=10.**-14)
+            stepper = ode(alpha_dot).set_integrator('zvode', atol=10.**-14, rtol=10.**-14)
             stepper.set_initial_value(alpha_0, self.times[0])
             self.amplitudes = np.empty((nt, nm, ns), dtype=ut.cpx)
             self.amplitudes[0, :, :] = alpha_0.reshape((nm,ns))

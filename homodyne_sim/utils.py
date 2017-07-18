@@ -8,7 +8,7 @@ from mpmath import gammainc
 from math import factorial as fctrl
 from operator import mul
 from glob import glob as glob #glob
-import cPickle as pkl
+import pickle as pkl
 import scipy as sp
 import scipy.stats
 
@@ -225,7 +225,7 @@ def overlap(a, b, nq):
     
     try:
         prod = np.dot(super_a.conj(), super_b)
-    except ValueError, e:
+    except ValueError as e:
         print("super_a.shape: {}".format(super_a.shape))
         print("super_b.shape: {}".format(super_b.shape))
         raise e

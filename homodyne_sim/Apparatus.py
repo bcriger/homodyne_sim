@@ -1,7 +1,19 @@
+from __future__ import absolute_import
+
+from sys import version_info
+PY2 = version_info.major == 2
+PY3 = version_info.major == 3
+
+if PY2:
+    import utils as ut
+elif PY3:
+    from . import utils as ut
+else:
+    raise RuntimeError("Version of Python not recognized: {}".format(version_info))
+
 import numpy as np
 from numpy.linalg import inv
 import itertools as it
-import utils as ut
 from scipy.signal import lti
 
 __all__ = ['Apparatus', '_drift_h', '_jump_op_lst', 
@@ -39,7 +51,7 @@ class Apparatus(object):
         for key in arg_dict.keys():
             try:
                 arg_dict[key] = np.array(arg_dict[key], dtype=ut.cpx)
-            except Exception, e:
+            except Exception as e:
                 pre_str = "Error while casting "+\
                             "{} to array:\n".format(key)
                 e.message = pre_str + e.message
